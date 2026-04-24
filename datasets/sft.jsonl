@@ -1,0 +1,1 @@
+{"prompt": "Write a function solution(x) that returns x + 1.\n", "completion": "def solution(x):\n    return x + 1\n", "task_id": "add_one", "candidate_id": "good", "score": 1.0}

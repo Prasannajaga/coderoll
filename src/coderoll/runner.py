@@ -68,6 +68,7 @@ class Runner:
             )
 
         score = self.evaluator.score(execution)
+        record_error = _derive_record_error(execution)
 
         metadata = dict(candidate.metadata)
         if "source" not in metadata:
@@ -89,7 +90,43 @@ class Runner:
             stderr=execution.stderr,
             duration_ms=execution.duration_ms,
             timed_out=execution.timed_out,
-            error=execution.error,
+            error=record_error,
             sandbox=execution.sandbox,
             metadata=metadata,
         )
+
+
+def _derive_record_error(execution: ExecutionResult) -> str | None:
+    if execution.error:
+        return execution.error
+    if execution.exit_code == 0:
+        return None
+
+    stderr_summary = _first_non_empty_line(execution.stderr)
+    if stderr_summary:
+        return stderr_summary
+
+    stdout_summary = _stdout_failure_summary(execution.stdout)
+    if stdout_summary:
+        return stdout_summary
+
+    return f"Process exited with code {execution.exit_code}"
+
+
+def _stdout_failure_summary(stdout: str) -> str | None:
+    lines = [line.strip() for line in stdout.splitlines() if line.strip()]
+    for line in lines:
+        if line.startswith("FAILED "):
+            return line
+    for line in lines:
+        if line.startswith("E   "):
+            return line[4:].strip()
+    return _first_non_empty_line(stdout)
+
+
+def _first_non_empty_line(text: str) -> str | None:
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line:
+            return line
+    return None

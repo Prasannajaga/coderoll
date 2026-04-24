@@ -2,16 +2,20 @@ from argparse import ArgumentParser
 from pathlib import Path
 import subprocess
 import tempfile
+import webbrowser
 from typing import Sequence
 
 from .candidate import Candidate
+from .config import load_config
 from .errors import CandidateError, CoderollError, StoreError
 from .evaluators.pytest_eval import PytestEvaluator
+from .exporters import export_preferences, export_rewards, export_sft
 from .rankers.simple import rank_records
 from .runner import Runner
 from .sandboxes.docker_cli import DockerSandbox
 from .stores.jsonl import JsonlStore
 from .task import Task
+from .viewer import default_viewer_path, write_viewer
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -21,15 +25,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "init":
             _cmd_init(Path(args.task_dir))
+        elif args.command == "init-config":
+            _cmd_init_config(Path(args.path), force=args.force)
         elif args.command == "build-image":
             _cmd_build_image(args.tag, args.python_version)
         elif args.command == "run":
             _cmd_run(
-                task_dir=Path(args.task_dir),
+                task_dir=Path(args.task_dir) if args.task_dir else None,
                 candidate_file=Path(args.candidate) if args.candidate else None,
                 candidates_file=Path(args.candidates) if args.candidates else None,
-                out_path=Path(args.out),
+                out_path=Path(args.out) if args.out else None,
                 workers=args.workers,
+                config_path=Path(args.config) if args.config else None,
             )
         elif args.command == "rank":
             _cmd_rank(
@@ -41,6 +48,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif args.command == "inspect":
             _cmd_inspect(Path(args.results_jsonl), args.candidate_id)
+        elif args.command == "view":
+            _cmd_view(
+                results_path=Path(args.results_jsonl),
+                out_path=Path(args.out) if args.out else None,
+                title=args.title,
+                no_open=args.no_open,
+            )
+        elif args.command == "export":
+            _cmd_export(
+                results_path=Path(args.results_jsonl),
+                format_name=args.format,
+                out_path=Path(args.out),
+                include_metadata=args.include_metadata,
+            )
         else:
             parser.print_help()
             return 1
@@ -58,6 +79,17 @@ def _build_parser() -> ArgumentParser:
     init_parser = subparsers.add_parser("init", help="Create a starter task directory")
     init_parser.add_argument("task_dir", help="Task directory to create")
 
+    init_config_parser = subparsers.add_parser(
+        "init-config",
+        help="Create a sample run config file (.toml/.yaml/.yml)",
+    )
+    init_config_parser.add_argument("path", help="Config file path to create")
+    init_config_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite config file if it already exists",
+    )
+
     build_parser = subparsers.add_parser("build-image", help="Build the local Docker eval image")
     build_parser.add_argument("--tag", default="coderoll-python:3.11", help="Docker image tag")
     build_parser.add_argument(
@@ -67,12 +99,13 @@ def _build_parser() -> ArgumentParser:
     )
 
     run_parser = subparsers.add_parser("run", help="Run candidates for a task")
-    run_parser.add_argument("task_dir", help="Path to task directory")
-    group = run_parser.add_mutually_exclusive_group(required=True)
+    run_parser.add_argument("task_dir", nargs="?", help="Path to task directory")
+    group = run_parser.add_mutually_exclusive_group(required=False)
     group.add_argument("--candidate", help="Path to one candidate .py file")
     group.add_argument("--candidates", help="Path to candidates.jsonl")
-    run_parser.add_argument("--out", required=True, help="Output JSONL file")
+    run_parser.add_argument("--out", help="Output JSONL file")
     run_parser.add_argument("--workers", type=int, default=1, help="Parallel workers")
+    run_parser.add_argument("--config", help="Run configuration file (.toml/.yaml/.yml)")
 
     rank_parser = subparsers.add_parser("rank", help="Rank candidates from a results JSONL")
     rank_parser.add_argument("results_jsonl", help="Results JSONL path")
@@ -84,6 +117,29 @@ def _build_parser() -> ArgumentParser:
     inspect_parser = subparsers.add_parser("inspect", help="Inspect one candidate by id")
     inspect_parser.add_argument("results_jsonl", help="Results JSONL path")
     inspect_parser.add_argument("--id", dest="candidate_id", required=True, help="Candidate id")
+
+    view_parser = subparsers.add_parser("view", help="Generate a local static HTML results viewer")
+    view_parser.add_argument("results_jsonl", help="Results JSONL path")
+    view_parser.add_argument("--out", help="Output HTML path")
+    view_parser.add_argument("--title", help="Report title")
+    view_parser.add_argument(
+        "--no-open",
+        action="store_true",
+        help="Do not auto-open the HTML report in a browser",
+    )
+
+    export_parser = subparsers.add_parser(
+        "export",
+        help="Export training-ready JSONL datasets from run records",
+    )
+    export_parser.add_argument("results_jsonl", help="Results JSONL path")
+    export_parser.add_argument("--format", required=True, help="Export format: sft|preference|rewards")
+    export_parser.add_argument("--out", required=True, help="Output JSONL path")
+    export_parser.add_argument(
+        "--include-metadata",
+        action="store_true",
+        help="Include additional metadata fields in exported rows",
+    )
 
     return parser
 
@@ -125,6 +181,73 @@ def _write_if_missing(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def _cmd_init_config(path: Path, force: bool = False) -> None:
+    if path.exists() and not force:
+        raise CoderollError(f"Config file already exists: {path}. Use --force to overwrite.")
+
+    suffix = path.suffix.lower()
+    if suffix == ".toml":
+        content = _sample_toml_config()
+    elif suffix in {".yaml", ".yml"}:
+        content = _sample_yaml_config()
+    else:
+        raise CoderollError("Config path must end with .toml, .yaml, or .yml")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    print(f"Initialized config at {path}")
+
+
+def _sample_yaml_config() -> str:
+    return (
+        "id: add_one_eval\n\n"
+        "task:\n"
+        "  path: examples/add_one\n\n"
+        "candidates:\n"
+        "  path: examples/add_one/candidates.jsonl\n\n"
+        "output:\n"
+        "  path: runs/add_one.jsonl\n\n"
+        "runner:\n"
+        "  workers: 1\n\n"
+        "sandbox:\n"
+        "  image: coderoll-python:3.11\n"
+        "  timeout: 5\n"
+        "  memory: 256m\n"
+        "  cpus: \"1\"\n"
+        "  pids_limit: 128\n"
+        "  network: false\n\n"
+        "viewer:\n"
+        "  enabled: true\n"
+        "  out: runs/add_one.viewer.html\n"
+        "  open: true\n"
+    )
+
+
+def _sample_toml_config() -> str:
+    return (
+        'id = "add_one_eval"\n\n'
+        "[task]\n"
+        'path = "examples/add_one"\n\n'
+        "[candidates]\n"
+        'path = "examples/add_one/candidates.jsonl"\n\n'
+        "[output]\n"
+        'path = "runs/add_one.jsonl"\n\n'
+        "[runner]\n"
+        "workers = 1\n\n"
+        "[sandbox]\n"
+        'image = "coderoll-python:3.11"\n'
+        "timeout = 5\n"
+        'memory = "256m"\n'
+        'cpus = "1"\n'
+        "pids_limit = 128\n"
+        "network = false\n\n"
+        "[viewer]\n"
+        "enabled = true\n"
+        'out = "runs/add_one.viewer.html"\n'
+        "open = true\n"
+    )
+
+
 def _cmd_build_image(tag: str, python_version: str) -> None:
     template_path = Path(__file__).resolve().parent / "templates" / "Dockerfile"
     if not template_path.exists():
@@ -157,12 +280,28 @@ def _cmd_build_image(tag: str, python_version: str) -> None:
 
 
 def _cmd_run(
-    task_dir: Path,
+    task_dir: Path | None,
     candidate_file: Path | None,
     candidates_file: Path | None,
-    out_path: Path,
+    out_path: Path | None,
     workers: int,
+    config_path: Path | None,
 ) -> None:
+    if config_path is not None:
+        if task_dir is not None:
+            raise ValueError("Use either --config or positional TASK_DIR, not both.")
+        if candidate_file is not None or candidates_file is not None or out_path is not None:
+            raise ValueError(
+                "When using --config, do not pass --candidate, --candidates, or --out."
+            )
+        _cmd_run_from_config(config_path)
+        return
+
+    if task_dir is None:
+        raise ValueError("TASK_DIR is required when --config is not used.")
+    if out_path is None:
+        raise ValueError("--out is required when --config is not used.")
+
     task = Task.from_dir(task_dir)
 
     if candidate_file is not None:
@@ -193,6 +332,49 @@ def _cmd_run(
     errors = [record.error for record in results.records if record.error]
     if errors:
         print(f"first_error: {errors[0]}")
+
+
+def _cmd_run_from_config(config_path: Path) -> None:
+    cfg = load_config(config_path)
+    task = Task.from_dir(cfg.task_path)
+    candidates = Candidate.from_jsonl(cfg.candidates_path)
+    if not candidates:
+        raise CandidateError("No candidates were loaded from config candidates.path")
+
+    runner = Runner(
+        sandbox=DockerSandbox(
+            image=cfg.sandbox.image,
+            timeout=cfg.sandbox.timeout,
+            memory=cfg.sandbox.memory,
+            cpus=cfg.sandbox.cpus,
+            pids_limit=cfg.sandbox.pids_limit,
+            network=cfg.sandbox.network,
+        ),
+        evaluator=PytestEvaluator(),
+        store=JsonlStore(cfg.output_path),
+    )
+
+    results = runner.run(task, candidates, workers=cfg.runner.workers)
+    summary = results.summary()
+
+    print(f"config_id: {cfg.id}")
+    print(f"task_id: {task.id}")
+    print(f"total: {summary['total']}")
+    print(f"passed: {summary['passed']}")
+    print(f"failed: {summary['failed']}")
+    print(f"best_score: {summary['best_score']}")
+    print(f"output: {cfg.output_path}")
+    errors = [record.error for record in results.records if record.error]
+    if errors:
+        print(f"first_error: {errors[0]}")
+
+    if cfg.viewer.enabled:
+        viewer_out = Path(cfg.viewer.out) if cfg.viewer.out else default_viewer_path(cfg.output_path)
+        title = f"coderoll run: {cfg.id}"
+        written = write_viewer(results.records, viewer_out, title=title)
+        print(f"viewer: {written}")
+        if cfg.viewer.open:
+            webbrowser.open(written.resolve().as_uri())
 
 
 def _cmd_rank(
@@ -255,3 +437,41 @@ def _cmd_inspect(results_path: Path, candidate_id: str) -> None:
     print(match.stderr)
     print("code:")
     print(match.code)
+
+
+def _cmd_view(
+    results_path: Path,
+    out_path: Path | None,
+    title: str | None,
+    no_open: bool,
+) -> None:
+    records = JsonlStore(results_path).read_all()
+    target = out_path or default_viewer_path(results_path)
+    written = write_viewer(records, target, title=title)
+    print(f"viewer: {written}")
+
+    if not no_open:
+        webbrowser.open(written.resolve().as_uri())
+
+
+def _cmd_export(
+    results_path: Path,
+    format_name: str,
+    out_path: Path,
+    include_metadata: bool,
+) -> None:
+    records = JsonlStore(results_path).read_all()
+    format_key = format_name.strip().lower()
+    if format_key == "sft":
+        rows = export_sft(records, out_path, include_metadata=include_metadata)
+    elif format_key == "preference":
+        rows = export_preferences(records, out_path, include_metadata=include_metadata)
+    elif format_key == "rewards":
+        rows = export_rewards(records, out_path, include_metadata=include_metadata)
+    else:
+        raise ValueError("Invalid format. Supported formats are: sft, preference, rewards")
+
+    print(f"format: {format_key}")
+    print(f"input: {results_path}")
+    print(f"output: {out_path}")
+    print(f"rows_exported: {rows}")
