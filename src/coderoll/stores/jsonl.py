@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+from typing import Iterator
 
 from ..errors import StoreError
 from ..result import RunRecord
@@ -25,10 +26,11 @@ class JsonlStore:
             raise StoreError(f"Failed to write JSONL store {self.path}: {exc}") from exc
 
     def read_all(self) -> list[RunRecord]:
-        if not self.path.exists():
-            return []
+        return list(self.iter_records())
 
-        records: list[RunRecord] = []
+    def iter_records(self) -> Iterator[RunRecord]:
+        if not self.path.exists():
+            return
         try:
             with self.path.open("r", encoding="utf-8") as handle:
                 for line_number, raw_line in enumerate(handle, start=1):
@@ -45,8 +47,6 @@ class JsonlStore:
                         raise StoreError(
                             f"Invalid JSON object in {self.path} on line {line_number}"
                         )
-                    records.append(RunRecord.from_dict(item))
+                    yield RunRecord.from_dict(item)
         except OSError as exc:
             raise StoreError(f"Failed to read JSONL store {self.path}: {exc}") from exc
-
-        return records

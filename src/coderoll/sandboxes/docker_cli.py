@@ -41,7 +41,7 @@ class DockerSandbox:
         sandbox_meta = self._sandbox_meta(workspace)
 
         try:
-            self._copy_support_files(task.root, workspace)
+            self._copy_support_files(task.root, workspace, skip_relpaths={task.test_file})
 
             entry_path = workspace / task.entry_file
             entry_path.parent.mkdir(parents=True, exist_ok=True)
@@ -120,11 +120,20 @@ class DockerSandbox:
             if not self.keep_workspace:
                 shutil.rmtree(workspace, ignore_errors=True)
 
-    def _copy_support_files(self, task_root: Path, workspace: Path) -> None:
+    def _copy_support_files(
+        self,
+        task_root: Path,
+        workspace: Path,
+        skip_relpaths: set[str] | None = None,
+    ) -> None:
+        skip_relpaths = skip_relpaths or set()
         for source in task_root.rglob("*"):
             if source.is_dir():
                 continue
             relative = source.relative_to(task_root)
+            rel_posix = relative.as_posix()
+            if rel_posix in skip_relpaths:
+                continue
             if _should_skip(relative):
                 continue
 

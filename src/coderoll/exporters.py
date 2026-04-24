@@ -19,10 +19,10 @@ def export_sft(
         passed_records = [record for record in by_task[task_id] if record.passed]
         if not passed_records:
             continue
-        best = sorted(
+        best = min(
             passed_records,
             key=lambda record: (-record.score, record.duration_ms, record.candidate_id),
-        )[0]
+        )
         row: dict[str, Any] = {
             "prompt": best.prompt,
             "completion": best.code,
@@ -61,14 +61,14 @@ def export_preferences(
         if not passed_records or not failed_records:
             continue
 
-        chosen = sorted(
+        chosen = min(
             passed_records,
             key=lambda record: (-record.score, record.duration_ms, record.candidate_id),
-        )[0]
-        rejected = sorted(
+        )
+        rejected = min(
             failed_records,
             key=lambda record: (record.score, -record.duration_ms, record.candidate_id),
-        )[0]
+        )
 
         row = {
             "prompt": chosen.prompt,

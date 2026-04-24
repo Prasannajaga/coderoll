@@ -38,3 +38,13 @@ def test_jsonl_store_append_and_read(tmp_path: Path) -> None:
 
     assert len(records) == 2
     assert [record.candidate_id for record in records] == ["a", "b"]
+
+
+def test_jsonl_store_iter_records(tmp_path: Path) -> None:
+    path = tmp_path / "runs" / "records.jsonl"
+    store = JsonlStore(path)
+    store.append_many([_record("a"), _record("b"), _record("c")])
+
+    candidate_ids = [record.candidate_id for record in store.iter_records()]
+
+    assert candidate_ids == ["a", "b", "c"]

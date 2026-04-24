@@ -321,17 +321,12 @@ def _cmd_run(
     )
 
     results = runner.run(task, candidates, workers=workers)
-    summary = results.summary()
-
-    print(f"task_id: {task.id}")
-    print(f"total: {summary['total']}")
-    print(f"passed: {summary['passed']}")
-    print(f"failed: {summary['failed']}")
-    print(f"best_score: {summary['best_score']}")
-    print(f"output: {out_path}")
-    errors = [record.error for record in results.records if record.error]
-    if errors:
-        print(f"first_error: {errors[0]}")
+    _print_run_summary(
+        task_id=task.id,
+        output_path=out_path,
+        summary=results.summary(),
+        errors=[record.error for record in results.records if record.error],
+    )
 
 
 def _cmd_run_from_config(config_path: Path) -> None:
@@ -355,18 +350,13 @@ def _cmd_run_from_config(config_path: Path) -> None:
     )
 
     results = runner.run(task, candidates, workers=cfg.runner.workers)
-    summary = results.summary()
-
-    print(f"config_id: {cfg.id}")
-    print(f"task_id: {task.id}")
-    print(f"total: {summary['total']}")
-    print(f"passed: {summary['passed']}")
-    print(f"failed: {summary['failed']}")
-    print(f"best_score: {summary['best_score']}")
-    print(f"output: {cfg.output_path}")
-    errors = [record.error for record in results.records if record.error]
-    if errors:
-        print(f"first_error: {errors[0]}")
+    _print_run_summary(
+        task_id=task.id,
+        output_path=cfg.output_path,
+        summary=results.summary(),
+        errors=[record.error for record in results.records if record.error],
+        config_id=cfg.id,
+    )
 
     if cfg.viewer.enabled:
         viewer_out = Path(cfg.viewer.out) if cfg.viewer.out else default_viewer_path(cfg.output_path)
@@ -415,9 +405,8 @@ def _cmd_rank(
 
 
 def _cmd_inspect(results_path: Path, candidate_id: str) -> None:
-    records = JsonlStore(results_path).read_all()
     match = None
-    for record in records:
+    for record in JsonlStore(results_path).iter_records():
         if record.candidate_id == candidate_id:
             match = record
             break
@@ -437,6 +426,26 @@ def _cmd_inspect(results_path: Path, candidate_id: str) -> None:
     print(match.stderr)
     print("code:")
     print(match.code)
+
+
+def _print_run_summary(
+    task_id: str,
+    output_path: Path,
+    summary: dict[str, object],
+    errors: list[str | None],
+    config_id: str | None = None,
+) -> None:
+    if config_id is not None:
+        print(f"config_id: {config_id}")
+    print(f"task_id: {task_id}")
+    print(f"total: {summary['total']}")
+    print(f"passed: {summary['passed']}")
+    print(f"failed: {summary['failed']}")
+    print(f"best_score: {summary['best_score']}")
+    print(f"output: {output_path}")
+    first_error = next((error for error in errors if error), None)
+    if first_error is not None:
+        print(f"first_error: {first_error}")
 
 
 def _cmd_view(
