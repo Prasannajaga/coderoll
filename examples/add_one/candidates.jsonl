@@ -1,0 +1,3 @@
+{"id": "good", "code": "def solution(x):\n    return x + 1\n"}
+{"id": "bad_identity", "code": "def solution(x):\n    return x\n"}
+{"id": "bad_plus_two", "code": "def solution(x):\n    return x + 2\n"}

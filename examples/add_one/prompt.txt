@@ -1,0 +1,1 @@
+Write a function solution(x) that returns x + 1.
