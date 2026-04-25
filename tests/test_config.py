@@ -5,6 +5,7 @@ import sys
 import pytest
 
 from coderoll.cli import main
+import coderoll.cli as cli
 from coderoll.config import load_config, load_config_dict
 from coderoll.errors import CoderollError
 
@@ -149,3 +150,34 @@ def test_yaml_missing_dependency_error(tmp_path: Path, monkeypatch: pytest.Monke
         match="YAML config requires PyYAML. Install with: pip install 'coderoll\\[yaml\\]'",
     ):
         load_config_dict(cfg_path)
+
+
+def test_run_positional_config_detection(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg_path = tmp_path / "coderoll.toml"
+    cfg_path.write_text('id = "x"\n', encoding="utf-8")
+    seen: list[Path] = []
+
+    def fake_run_from_config(path: Path) -> None:
+        seen.append(path)
+
+    monkeypatch.setattr(cli, "_cmd_run_from_config", fake_run_from_config)
+
+    exit_code = main(["run", str(cfg_path)])
+
+    assert exit_code == 0
+    assert seen == [cfg_path]
+
+
+def test_run_rejects_positional_config_with_config_flag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg_path = tmp_path / "coderoll.toml"
+    other_path = tmp_path / "other.toml"
+    cfg_path.write_text('id = "x"\n', encoding="utf-8")
+    other_path.write_text('id = "y"\n', encoding="utf-8")
+    monkeypatch.setattr(cli, "_cmd_run_from_config", lambda path: None)
+
+    exit_code = main(["run", str(cfg_path), "--config", str(other_path)])
+
+    assert exit_code == 1

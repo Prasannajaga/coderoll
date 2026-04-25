@@ -72,6 +72,12 @@ class LocalSubprocessSandbox:
                     timed_out=True,
                     error=f"Execution timed out after {self.timeout} seconds.",
                     sandbox=sandbox_meta,
+                    language=task.language,
+                    image=task.image,
+                    phase="timeout",
+                    test_exit_code=None,
+                    test_stdout=_to_text(exc.stdout),
+                    test_stderr=_to_text(exc.stderr),
                 )
             except OSError as exc:
                 raise SandboxError(f"Failed to run local subprocess sandbox: {exc}") from exc
@@ -87,6 +93,12 @@ class LocalSubprocessSandbox:
                 timed_out=False,
                 error=None,
                 sandbox=sandbox_meta,
+                language=task.language,
+                image=task.image,
+                phase="test",
+                test_exit_code=completed.returncode,
+                test_stdout=completed.stdout,
+                test_stderr=completed.stderr,
             )
         finally:
             if not self.keep_workspace:

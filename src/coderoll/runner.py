@@ -4,8 +4,11 @@ from typing import Any
 from uuid import uuid4
 
 from .candidate import Candidate
+from .config import RunConfig
+from .errors import CandidateError
 from .hashing import sha256_file, sha256_text
 from .result import ExecutionResult, RunRecord, RunResults
+from .stores.jsonl import JsonlStore
 from .task import Task
 
 
@@ -65,6 +68,10 @@ class Runner:
                 timed_out=False,
                 error=str(exc),
                 sandbox={"type": type(self.sandbox).__name__},
+                language=task.language,
+                image=task.image,
+                phase="infra",
+                test_exit_code=-1,
             )
 
         score = self.evaluator.score(execution)
@@ -93,6 +100,23 @@ class Runner:
             error=record_error,
             sandbox=execution.sandbox,
             metadata=metadata,
+            language=execution.language,
+            image=execution.image,
+            phase=execution.phase,
+            build_passed=(
+                execution.build_exit_code is None or execution.build_exit_code == 0
+            ),
+            build_exit_code=execution.build_exit_code,
+            tests_total=execution.tests_total,
+            tests_passed=execution.tests_passed,
+            tests_failed=execution.tests_failed,
+            tests_errors=execution.tests_errors,
+            tests_skipped=execution.tests_skipped,
+            score_details=score.details,
+            build_stdout=execution.build_stdout,
+            build_stderr=execution.build_stderr,
+            test_stdout=execution.test_stdout,
+            test_stderr=execution.test_stderr,
         )
 
 
@@ -130,3 +154,28 @@ def _first_non_empty_line(text: str) -> str | None:
         if line:
             return line
     return None
+
+
+def run_from_config(config: RunConfig) -> RunResults:
+    from .candidate import Candidate
+    from .evaluators.pytest_eval import PytestEvaluator
+    from .sandboxes.docker_cli import DockerSandbox
+
+    task = Task.from_dir(config.task_path)
+    candidates = Candidate.from_jsonl(config.candidates_path)
+    if not candidates:
+        raise CandidateError("No candidates were loaded from config candidates.path")
+    sandbox = DockerSandbox(
+        image=config.sandbox.image,
+        timeout=config.sandbox.timeout,
+        memory=config.sandbox.memory,
+        cpus=config.sandbox.cpus,
+        pids_limit=config.sandbox.pids_limit,
+        network=config.sandbox.network,
+    )
+    runner = Runner(
+        sandbox=sandbox,
+        evaluator=PytestEvaluator(),
+        store=JsonlStore(config.output_path),
+    )
+    return runner.run(task, candidates, workers=config.runner.workers)

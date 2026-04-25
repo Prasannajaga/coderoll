@@ -1,0 +1,26 @@
+id: js_add_one_eval
+
+task:
+  path: js_add_one
+
+candidates:
+  path: js_add_one/candidates.jsonl
+
+output:
+  path: ../runs/js_add_one.jsonl
+
+runner:
+  workers: 1
+
+sandbox:
+  image: null
+  timeout: 5
+  memory: 256m
+  cpus: "1"
+  pids_limit: 128
+  network: false
+
+viewer:
+  enabled: true
+  out: ../runs/js_add_one.viewer.html
+  open: false

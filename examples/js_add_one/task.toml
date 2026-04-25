@@ -1,0 +1,6 @@
+id = "js_add_one"
+language = "javascript"
+entry_file = "solution.js"
+test_file = "test_solution.test.js"
+test_command = "node --test --test-reporter=tap"
+timeout = 5

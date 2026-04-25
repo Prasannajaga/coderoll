@@ -1,0 +1,7 @@
+id = "ts_add_one"
+language = "typescript"
+entry_file = "solution.ts"
+test_file = "test_solution.test.ts"
+build_command = "npx tsc --noEmit"
+test_command = "npm test"
+timeout = 8

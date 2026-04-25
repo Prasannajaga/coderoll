@@ -1,0 +1,3 @@
+{"id":"good_ts","code":"export function solution(x: number): number {\n  return x + 1;\n}"}
+{"id":"bad_type_ts","code":"export function solution(x: string): string {\n  return x;\n}"}
+{"id":"bad_logic_ts","code":"export function solution(x: number): number {\n  return x;\n}"}

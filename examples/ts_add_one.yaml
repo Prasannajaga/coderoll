@@ -1,0 +1,26 @@
+id: ts_add_one_eval
+
+task:
+  path: ts_add_one
+
+candidates:
+  path: ts_add_one/candidates.jsonl
+
+output:
+  path: ../runs/ts_add_one.jsonl
+
+runner:
+  workers: 1
+
+sandbox:
+  image: null
+  timeout: 8
+  memory: 256m
+  cpus: "1"
+  pids_limit: 128
+  network: false
+
+viewer:
+  enabled: true
+  out: ../runs/ts_add_one.viewer.html
+  open: false

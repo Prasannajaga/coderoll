@@ -1,4 +1,4 @@
-from argparse import ArgumentParser
+from argparse import ArgumentParser, SUPPRESS
 from pathlib import Path
 import subprocess
 import tempfile
@@ -11,7 +11,8 @@ from .errors import CandidateError, CoderollError, StoreError
 from .evaluators.pytest_eval import PytestEvaluator
 from .exporters import export_preferences, export_rewards, export_sft
 from .rankers.simple import rank_records
-from .runner import Runner
+from .runner import Runner, run_from_config
+from .runtimes import get_runtime
 from .sandboxes.docker_cli import DockerSandbox
 from .stores.jsonl import JsonlStore
 from .task import Task
@@ -28,7 +29,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "init-config":
             _cmd_init_config(Path(args.path), force=args.force)
         elif args.command == "build-image":
-            _cmd_build_image(args.tag, args.python_version)
+            _cmd_build_image(args.tag, args.runtime, args.python_version)
         elif args.command == "run":
             _cmd_run(
                 task_dir=Path(args.task_dir) if args.task_dir else None,
@@ -90,13 +91,14 @@ def _build_parser() -> ArgumentParser:
         help="Overwrite config file if it already exists",
     )
 
-    build_parser = subparsers.add_parser("build-image", help="Build the local Docker eval image")
-    build_parser.add_argument("--tag", default="coderoll-python:3.11", help="Docker image tag")
+    build_parser = subparsers.add_parser("build-image", help="Build a local Docker eval image")
+    build_parser.add_argument("--tag", help="Docker image tag")
     build_parser.add_argument(
-        "--python-version",
-        default="3.11",
-        help="Python version for base image, e.g. 3.11",
+        "--runtime",
+        default="python",
+        help="Runtime image to build: python, javascript, or typescript",
     )
+    build_parser.add_argument("--python-version", default="3.11", help=SUPPRESS)
 
     run_parser = subparsers.add_parser("run", help="Run candidates for a task")
     run_parser.add_argument("task_dir", nargs="?", help="Path to task directory")
@@ -210,7 +212,7 @@ def _sample_yaml_config() -> str:
         "runner:\n"
         "  workers: 1\n\n"
         "sandbox:\n"
-        "  image: coderoll-python:3.11\n"
+        "  image: null\n"
         "  timeout: 5\n"
         "  memory: 256m\n"
         "  cpus: \"1\"\n"
@@ -235,7 +237,7 @@ def _sample_toml_config() -> str:
         "[runner]\n"
         "workers = 1\n\n"
         "[sandbox]\n"
-        'image = "coderoll-python:3.11"\n'
+        'image = ""\n'
         "timeout = 5\n"
         'memory = "256m"\n'
         'cpus = "1"\n'
@@ -248,21 +250,18 @@ def _sample_toml_config() -> str:
     )
 
 
-def _cmd_build_image(tag: str, python_version: str) -> None:
-    template_path = Path(__file__).resolve().parent / "templates" / "Dockerfile"
-    if not template_path.exists():
-        raise CoderollError(f"Missing Dockerfile template: {template_path}")
-
-    template = template_path.read_text(encoding="utf-8")
-    dockerfile_content = template.replace("{{python_version}}", python_version)
+def _cmd_build_image(tag: str | None, runtime: str, python_version: str = "3.11") -> None:
+    spec = get_runtime(runtime)
+    image_tag = tag or spec.default_image
+    dockerfile_content = _dockerfile_for_runtime(spec.language, python_version)
 
     with tempfile.TemporaryDirectory(prefix="coderoll_build_") as tmp_dir_name:
         tmp_dir = Path(tmp_dir_name)
         dockerfile_path = tmp_dir / "Dockerfile"
         dockerfile_path.write_text(dockerfile_content, encoding="utf-8")
 
-        command = ["docker", "build", "-t", tag, str(tmp_dir)]
-        print(f"Building Docker image {tag} using Python {python_version}...")
+        command = ["docker", "build", "-t", image_tag, str(tmp_dir)]
+        print(f"Building Docker image {image_tag} for runtime {spec.language}...")
 
         try:
             completed = subprocess.run(command, capture_output=True, text=True, check=False)
@@ -276,7 +275,25 @@ def _cmd_build_image(tag: str, python_version: str) -> None:
             print(completed.stderr)
             raise CoderollError("Docker image build failed")
 
-        print(f"Successfully built image: {tag}")
+        print(f"Successfully built image: {image_tag}")
+
+
+def _dockerfile_for_runtime(runtime: str, python_version: str = "3.11") -> str:
+    if runtime == "python":
+        return (
+            f"FROM python:{python_version}-slim\n"
+            "RUN pip install --no-cache-dir pytest\n"
+            "WORKDIR /workspace\n"
+        )
+    if runtime == "javascript":
+        return "FROM node:20-slim\nWORKDIR /workspace\n"
+    if runtime == "typescript":
+        return (
+            "FROM node:20-slim\n"
+            "RUN npm install -g typescript tsx\n"
+            "WORKDIR /workspace\n"
+        )
+    raise CoderollError(f"Unsupported runtime: {runtime}")
 
 
 def _cmd_run(
@@ -288,6 +305,8 @@ def _cmd_run(
     config_path: Path | None,
 ) -> None:
     if config_path is not None:
+        if task_dir is not None and _is_config_path(task_dir):
+            raise ValueError("Use either --config or positional config file, not both.")
         if task_dir is not None:
             raise ValueError("Use either --config or positional TASK_DIR, not both.")
         if candidate_file is not None or candidates_file is not None or out_path is not None:
@@ -299,6 +318,15 @@ def _cmd_run(
 
     if task_dir is None:
         raise ValueError("TASK_DIR is required when --config is not used.")
+    if _is_config_path(task_dir):
+        if candidate_file is not None or candidates_file is not None or out_path is not None:
+            raise ValueError(
+                "When using config mode, do not pass --candidate, --candidates, or --out."
+            )
+        _cmd_run_from_config(task_dir)
+        return
+    if not task_dir.is_dir():
+        raise ValueError(f"Run path must be a config file or task directory: {task_dir}")
     if out_path is None:
         raise ValueError("--out is required when --config is not used.")
 
@@ -331,27 +359,9 @@ def _cmd_run(
 
 def _cmd_run_from_config(config_path: Path) -> None:
     cfg = load_config(config_path)
-    task = Task.from_dir(cfg.task_path)
-    candidates = Candidate.from_jsonl(cfg.candidates_path)
-    if not candidates:
-        raise CandidateError("No candidates were loaded from config candidates.path")
-
-    runner = Runner(
-        sandbox=DockerSandbox(
-            image=cfg.sandbox.image,
-            timeout=cfg.sandbox.timeout,
-            memory=cfg.sandbox.memory,
-            cpus=cfg.sandbox.cpus,
-            pids_limit=cfg.sandbox.pids_limit,
-            network=cfg.sandbox.network,
-        ),
-        evaluator=PytestEvaluator(),
-        store=JsonlStore(cfg.output_path),
-    )
-
-    results = runner.run(task, candidates, workers=cfg.runner.workers)
+    results = run_from_config(cfg)
     _print_run_summary(
-        task_id=task.id,
+        task_id=Task.from_dir(cfg.task_path).id,
         output_path=cfg.output_path,
         summary=results.summary(),
         errors=[record.error for record in results.records if record.error],
@@ -365,6 +375,10 @@ def _cmd_run_from_config(config_path: Path) -> None:
         print(f"viewer: {written}")
         if cfg.viewer.open:
             webbrowser.open(written.resolve().as_uri())
+
+
+def _is_config_path(path: Path) -> bool:
+    return path.is_file() and path.suffix.lower() in {".toml", ".yaml", ".yml"}
 
 
 def _cmd_rank(

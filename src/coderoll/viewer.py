@@ -1,6 +1,5 @@
 from pathlib import Path
 import json
-
 from .result import RunRecord
 
 
@@ -274,6 +273,14 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
         <option value="failed">failed</option>
         <option value="timeout">timeout</option>
       </select>
+      <select id="language-filter" title="Language filter">
+        <option value="all">all languages</option>
+      </select>
+      <select id="phase-filter" title="Phase filter">
+        <option value="all">all phases</option>
+      </select>
+      <label><input id="partial-only" type="checkbox"> partial only</label>
+      <input id="score-min" type="number" min="0" max="1" step="0.01" placeholder="score min">
       <select id="sort-by" title="Sort by">
         <option value="score_desc">score desc</option>
         <option value="duration_asc">duration asc</option>
@@ -289,8 +296,12 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
           <thead>
             <tr>
               <th>candidate_id</th>
+              <th>language</th>
+              <th>phase</th>
               <th>score</th>
               <th>passed</th>
+              <th>tests</th>
+              <th>build</th>
               <th>duration_ms</th>
               <th>exit_code</th>
               <th>timed_out</th>
@@ -323,6 +334,10 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
     const ui = {
       search: document.getElementById("search"),
       status: document.getElementById("status-filter"),
+      language: document.getElementById("language-filter"),
+      phase: document.getElementById("phase-filter"),
+      partialOnly: document.getElementById("partial-only"),
+      scoreMin: document.getElementById("score-min"),
       sort: document.getElementById("sort-by"),
       showCode: document.getElementById("show-code-table"),
       exportBtn: document.getElementById("export-json"),
@@ -335,7 +350,7 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
       tabContent: document.getElementById("tab-content"),
     };
 
-    const TAB_NAMES = ["Code", "stdout", "stderr", "Prompt", "Metadata", "Raw JSON"];
+    const TAB_NAMES = ["Code", "build stdout", "build stderr", "test stdout", "test stderr", "stdout", "stderr", "Score", "Prompt", "Metadata", "Raw JSON"];
     let state = {
       filtered: [],
       selectedIndex: -1,
@@ -367,6 +382,9 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
         record.code,
         record.stdout,
         record.stderr,
+        record.language,
+        record.phase,
+        record.score_details ? JSON.stringify(record.score_details) : "",
       ].map(asText).join(" ").toLowerCase();
       return haystack.includes(query);
     }
@@ -379,11 +397,34 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
       return true;
     }
 
+    function matchesLanguage(record, language) {
+      if (language === "all") return true;
+      return asText(record.language || "").toLowerCase() === language;
+    }
+
+    function matchesPhase(record, phase) {
+      if (phase === "all") return true;
+      return asText(record.phase || "").toLowerCase() === phase;
+    }
+
     function filterSortRecords() {
       const query = ui.search.value.trim().toLowerCase();
       const status = ui.status.value;
+      const language = ui.language.value;
+      const phase = ui.phase.value;
+      const partialOnly = ui.partialOnly.checked;
+      const minRaw = ui.scoreMin.value.trim();
+      const scoreMin = minRaw === "" ? null : Number(minRaw);
       const sort = ui.sort.value;
-      const filtered = records.filter((r) => matchesSearch(r, query) && matchesStatus(r, status));
+      const filtered = records.filter((r) => {
+        const score = Number(r.score) || 0;
+        return matchesSearch(r, query)
+          && matchesStatus(r, status)
+          && matchesLanguage(r, language)
+          && matchesPhase(r, phase)
+          && (!partialOnly || (score > 0 && !r.passed))
+          && (scoreMin === null || score >= scoreMin);
+      });
 
       if (sort === "score_desc") {
         filtered.sort(rank);
@@ -453,6 +494,8 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
         });
 
         addCell(tr, asText(record.candidate_id), "mono");
+        addCell(tr, asText(record.language || ""), "mono");
+        addCell(tr, asText(record.phase || ""), "mono");
         addCell(tr, Number(record.score || 0).toFixed(3), "mono");
         const statusCell = document.createElement("td");
         const pill = document.createElement("span");
@@ -460,6 +503,8 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
         pill.textContent = record.passed ? "true" : "false";
         statusCell.appendChild(pill);
         tr.appendChild(statusCell);
+        addCell(tr, testsText(record), "mono");
+        addCell(tr, buildText(record), "mono");
         addCell(tr, asText(record.duration_ms), "mono");
         addCell(tr, asText(record.exit_code), "mono");
         addCell(tr, asText(record.timed_out), "mono");
@@ -469,6 +514,18 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
 
         ui.rows.appendChild(tr);
       });
+    }
+
+    function testsText(record) {
+      const passed = record.tests_passed;
+      const total = record.tests_total;
+      if (passed === null || passed === undefined || total === null || total === undefined) return "";
+      return asText(passed) + "/" + asText(total);
+    }
+
+    function buildText(record) {
+      if (record.build_passed === null || record.build_passed === undefined) return "n/a";
+      return record.build_passed ? "pass" : "fail";
     }
 
     function addCell(tr, text, className) {
@@ -510,8 +567,14 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
       const pairs = [
         ["candidate_id", record.candidate_id],
         ["task_id", record.task_id],
+        ["language", record.language],
+        ["phase", record.phase],
+        ["image", record.image],
         ["score", Number(record.score || 0).toFixed(3)],
         ["passed", record.passed],
+        ["tests", testsText(record)],
+        ["build", buildText(record)],
+        ["build_exit_code", record.build_exit_code],
         ["duration_ms", record.duration_ms],
         ["exit_code", record.exit_code],
         ["code_hash", record.code_hash],
@@ -551,6 +614,16 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
         ui.tabContent.textContent = asText(record.stdout);
       } else if (tab === "stderr") {
         ui.tabContent.textContent = asText(record.stderr);
+      } else if (tab === "build stdout") {
+        ui.tabContent.textContent = asText(record.build_stdout);
+      } else if (tab === "build stderr") {
+        ui.tabContent.textContent = asText(record.build_stderr);
+      } else if (tab === "test stdout") {
+        ui.tabContent.textContent = asText(record.test_stdout);
+      } else if (tab === "test stderr") {
+        ui.tabContent.textContent = asText(record.test_stderr);
+      } else if (tab === "Score") {
+        ui.tabContent.textContent = JSON.stringify(record.score_details || {}, null, 2);
       } else if (tab === "Prompt") {
         ui.tabContent.textContent = asText(record.prompt);
       } else if (tab === "Metadata") {
@@ -588,11 +661,30 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
 
     ui.search.addEventListener("input", refresh);
     ui.status.addEventListener("change", refresh);
+    ui.language.addEventListener("change", refresh);
+    ui.phase.addEventListener("change", refresh);
+    ui.partialOnly.addEventListener("change", refresh);
+    ui.scoreMin.addEventListener("input", refresh);
     ui.sort.addEventListener("change", refresh);
     ui.showCode.addEventListener("change", renderRows);
     ui.exportBtn.addEventListener("click", exportFiltered);
 
+    populateSelect(ui.language, uniqueValues(records.map((r) => asText(r.language || "").toLowerCase()).filter(Boolean)));
+    populateSelect(ui.phase, uniqueValues(records.map((r) => asText(r.phase || "").toLowerCase()).filter(Boolean)));
     refresh();
+
+    function uniqueValues(values) {
+      return Array.from(new Set(values)).sort();
+    }
+
+    function populateSelect(select, values) {
+      values.forEach((value) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+        select.appendChild(option);
+      });
+    }
   })();
   </script>
 </body>

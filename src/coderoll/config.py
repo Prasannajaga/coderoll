@@ -8,7 +8,7 @@ from .errors import CoderollError
 
 @dataclass
 class SandboxConfig:
-    image: str = "coderoll-python:3.11"
+    image: str | None = None
     timeout: int = 5
     memory: str = "256m"
     cpus: str = "1"
@@ -90,13 +90,13 @@ def normalize_config(data: dict[str, Any], base_dir: Path) -> RunConfig:
 
     runner_section = _optional_section(data, "runner")
     workers = runner_section.get("workers", 1)
-    if not isinstance(workers, int) or workers < 1:
+    if not isinstance(workers, int) or isinstance(workers, bool) or workers < 1:
         raise CoderollError("runner.workers must be an integer >= 1")
     runner = RunnerConfig(workers=workers)
 
     sandbox_section = _optional_section(data, "sandbox")
     sandbox = SandboxConfig(
-        image=_optional_str(sandbox_section, "image", "coderoll-python:3.11"),
+        image=_optional_str_or_none(sandbox_section, "image"),
         timeout=_optional_positive_int(sandbox_section, "timeout", 5, "sandbox.timeout"),
         memory=_optional_str(sandbox_section, "memory", "256m"),
         cpus=_optional_str(sandbox_section, "cpus", "1"),
@@ -177,6 +177,8 @@ def _optional_str_or_none(section: dict[str, Any], key: str) -> str | None:
         return None
     if not isinstance(value, str):
         raise CoderollError(f"{key} must be a string when set")
+    if not value.strip():
+        return None
     return value
 
 
@@ -194,6 +196,6 @@ def _optional_positive_int(
     label: str,
 ) -> int:
     value = section.get(key, default)
-    if not isinstance(value, int) or value <= 0:
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
         raise CoderollError(f"{label} must be a positive integer")
     return value

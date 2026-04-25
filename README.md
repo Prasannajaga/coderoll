@@ -2,7 +2,7 @@
 
 `coderoll` is a lightweight, dependency-free, local-first Python library for code rollout collection and evaluation.
 
-It takes a coding task and one or more candidate solutions, runs each candidate inside a local Docker sandbox, executes pytest, scores outcomes, stores full traces as JSONL, and ranks candidates.
+It takes a coding task and one or more candidate solutions, runs each candidate inside a local Docker sandbox, executes tests, scores outcomes, stores full traces as JSONL, and ranks candidates.
 
 ## What coderoll is
 
@@ -10,60 +10,96 @@ It takes a coding task and one or more candidate solutions, runs each candidate 
 - Focused on clean rollout data collection for future RL/SFT workflows
 - Simple CLI + Python API
 
-## What coderoll is not
-
-- Not an RL trainer
-- Not an agent framework
-- Not an LLM provider wrapper
-- Not a web app or database service
-
-## Install from source
+## CLI usage
 
 ```bash
-pip install -e .
+coderoll --help
 ```
-
-## Build Docker image
 
 ```bash
-coderoll build-image
+coderoll init TASK_DIR
+coderoll init-config PATH [--force]
+coderoll build-image [--runtime python|javascript|typescript] [--tag TAG]
+coderoll run CONFIG.{toml,yaml,yml}
+coderoll run TASK_DIR [--candidate FILE | --candidates FILE.jsonl] --out RESULTS.jsonl [--workers N]
+coderoll rank RESULTS.jsonl [--top N] [--show-code] [--passed | --failed]
+coderoll inspect RESULTS.jsonl --id CANDIDATE_ID
+coderoll view RESULTS.jsonl [--out REPORT.html] [--title TITLE] [--no-open]
+coderoll export RESULTS.jsonl --format {sft,preference,rewards} --out DATASET.jsonl [--include-metadata]
 ```
 
-## Create a task
+## Build Runtime Images
+
+```bash
+coderoll build-image --runtime python
+coderoll build-image --runtime javascript
+coderoll build-image --runtime typescript
+```
+
+Python package runtime dependencies stay empty. JavaScript and TypeScript tooling lives inside Docker images only.
+
+## Config-First Runs
+
+Preferred usage puts all runtime arguments in a YAML or TOML config:
+
+```bash
+coderoll run examples/python_add_one.yaml
+coderoll run examples/js_add_one.yaml
+coderoll run examples/ts_add_one.yaml
+# also supported:
+coderoll run --config examples/python_add_one.yaml
+```
+
+Config files contain task path, candidates path, output path, workers, sandbox settings, and viewer settings. Relative paths resolve from the config file directory.
+
+TOML configs work dependency-free through stdlib `tomllib`. YAML configs require the optional extra:
+
+```bash
+pip install "coderoll[yaml]"
+```
+
+You can generate a starter config:
+
+```bash
+coderoll init-config coderoll.toml
+coderoll init-config coderoll.yaml
+```
+
+## Backward-Compatible Flag Mode
+
+The older task-directory CLI still works:
+
+```bash
+coderoll run examples/add_one --candidates examples/add_one/candidates.jsonl --out runs/add_one.jsonl
+coderoll run examples/add_one --candidate solution.py --out runs/add_one.single.jsonl
+```
+
+## Create a Python Task
 
 ```bash
 coderoll init examples/add_one
 ```
 
-## Run candidates
-
-```bash
-coderoll run examples/add_one --candidates examples/add_one/candidates.jsonl --out runs/add_one.jsonl
-```
-
-## Config-driven runs
-
-```bash
-coderoll init-config coderoll.yaml
-coderoll run --config coderoll.yaml
-```
-
-- TOML run config works dependency-free via stdlib `tomllib`
-- YAML run config requires optional extra:
-  - `pip install "coderoll[yaml]"`
-- `task.toml` remains task-level config
-- `coderoll.toml` / `coderoll.yaml` is run-level experiment config
-
 ## Rank results
 
 ```bash
 coderoll rank runs/add_one.jsonl --top 5
+coderoll rank runs/add_one.jsonl --top 5 --show-code
+coderoll rank runs/add_one.jsonl --passed
+coderoll rank runs/add_one.jsonl --failed
+```
+
+## Inspect one candidate
+
+```bash
+coderoll inspect runs/add_one.jsonl --id good
 ```
 
 ## Viewing results locally
 
 ```bash
 coderoll view runs/add_one.jsonl
+coderoll view runs/add_one.jsonl --out reports/add_one.html --no-open
 ```
 
 This generates a standalone static HTML report (for example `runs/add_one.viewer.html`).
@@ -75,18 +111,17 @@ No server is required, no runtime dependencies are added, and the report can be 
 No training is performed. These are plain data conversions only.
 
 1. SFT:
-best passing solution per task
-
+   best passing solution per task
 2. Preference:
-chosen passing solution vs rejected failing solution
-
+   chosen passing solution vs rejected failing solution
 3. Rewards:
-all candidates with score as reward
+   all candidates with score as reward
 
 ```bash
 coderoll export runs/add_one.jsonl --format sft --out datasets/sft.jsonl
 coderoll export runs/add_one.jsonl --format preference --out datasets/preferences.jsonl
 coderoll export runs/add_one.jsonl --format rewards --out datasets/rewards.jsonl
+coderoll export runs/add_one.jsonl --format rewards --out datasets/rewards_meta.jsonl --include-metadata
 ```
 
 `stdout`/`stderr` are excluded by default.

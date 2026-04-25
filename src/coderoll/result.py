@@ -13,6 +13,20 @@ class ExecutionResult:
     timed_out: bool
     error: str | None
     sandbox: dict[str, Any]
+    language: str = "python"
+    image: str | None = None
+    phase: str = "test"
+    build_exit_code: int | None = None
+    build_stdout: str = ""
+    build_stderr: str = ""
+    test_exit_code: int | None = None
+    test_stdout: str = ""
+    test_stderr: str = ""
+    tests_total: int | None = None
+    tests_passed: int | None = None
+    tests_failed: int | None = None
+    tests_errors: int | None = None
+    tests_skipped: int | None = None
 
 
 @dataclass
@@ -42,6 +56,21 @@ class RunRecord:
     error: str | None
     sandbox: dict[str, Any]
     metadata: dict[str, Any]
+    language: str | None = None
+    image: str | None = None
+    phase: str | None = None
+    build_passed: bool | None = None
+    build_exit_code: int | None = None
+    tests_total: int | None = None
+    tests_passed: int | None = None
+    tests_failed: int | None = None
+    tests_errors: int | None = None
+    tests_skipped: int | None = None
+    score_details: dict[str, Any] | None = None
+    build_stdout: str = ""
+    build_stderr: str = ""
+    test_stdout: str = ""
+    test_stderr: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -63,6 +92,21 @@ class RunRecord:
             "error": self.error,
             "sandbox": self.sandbox,
             "metadata": self.metadata,
+            "language": self.language,
+            "image": self.image,
+            "phase": self.phase,
+            "build_passed": self.build_passed,
+            "build_exit_code": self.build_exit_code,
+            "tests_total": self.tests_total,
+            "tests_passed": self.tests_passed,
+            "tests_failed": self.tests_failed,
+            "tests_errors": self.tests_errors,
+            "tests_skipped": self.tests_skipped,
+            "score_details": self.score_details or {},
+            "build_stdout": self.build_stdout,
+            "build_stderr": self.build_stderr,
+            "test_stdout": self.test_stdout,
+            "test_stderr": self.test_stderr,
         }
 
     @classmethod
@@ -86,6 +130,21 @@ class RunRecord:
             error=data.get("error"),
             sandbox=data.get("sandbox") if isinstance(data.get("sandbox"), dict) else {},
             metadata=data.get("metadata") if isinstance(data.get("metadata"), dict) else {},
+            language=_optional_str(data.get("language")),
+            image=_optional_str(data.get("image")),
+            phase=_optional_str(data.get("phase")),
+            build_passed=data.get("build_passed") if isinstance(data.get("build_passed"), bool) else None,
+            build_exit_code=_optional_int(data.get("build_exit_code")),
+            tests_total=_optional_int(data.get("tests_total")),
+            tests_passed=_optional_int(data.get("tests_passed")),
+            tests_failed=_optional_int(data.get("tests_failed")),
+            tests_errors=_optional_int(data.get("tests_errors")),
+            tests_skipped=_optional_int(data.get("tests_skipped")),
+            score_details=data.get("score_details") if isinstance(data.get("score_details"), dict) else {},
+            build_stdout=str(data.get("build_stdout", "")),
+            build_stderr=str(data.get("build_stderr", "")),
+            test_stdout=str(data.get("test_stdout", data.get("stdout", ""))),
+            test_stderr=str(data.get("test_stderr", data.get("stderr", ""))),
         )
 
 
@@ -118,3 +177,18 @@ class RunResults:
             "failed": len(self.failed()),
             "best_score": best.score if best is not None else None,
         }
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_str(value: Any) -> str | None:
+    if value is None:
+        return None
+    return str(value)

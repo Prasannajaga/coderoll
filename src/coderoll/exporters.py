@@ -37,6 +37,12 @@ def export_sft(
                 "code_hash": best.code_hash,
                 "test_hash": best.test_hash,
                 "created_at": best.created_at,
+                "language": best.language,
+                "phase": best.phase,
+                "tests_total": best.tests_total,
+                "tests_passed": best.tests_passed,
+                "build_passed": best.build_passed,
+                "score_details": best.score_details or {},
             }
         rows.append(row)
 
@@ -87,6 +93,17 @@ def export_preferences(
                 "chosen_code_hash": chosen.code_hash,
                 "rejected_code_hash": rejected.code_hash,
                 "test_hash": chosen.test_hash,
+                "language": chosen.language,
+                "chosen_phase": chosen.phase,
+                "rejected_phase": rejected.phase,
+                "chosen_tests_total": chosen.tests_total,
+                "chosen_tests_passed": chosen.tests_passed,
+                "rejected_tests_total": rejected.tests_total,
+                "rejected_tests_passed": rejected.tests_passed,
+                "chosen_build_passed": chosen.build_passed,
+                "rejected_build_passed": rejected.build_passed,
+                "chosen_score_details": chosen.score_details or {},
+                "rejected_score_details": rejected.score_details or {},
             }
         rows.append(row)
 
@@ -120,6 +137,12 @@ def export_rewards(
                 "code_hash": record.code_hash,
                 "test_hash": record.test_hash,
                 "created_at": record.created_at,
+                "language": record.language,
+                "phase": record.phase,
+                "tests_total": record.tests_total,
+                "tests_passed": record.tests_passed,
+                "build_passed": record.build_passed,
+                "score_details": record.score_details or {},
             }
         rows.append(row)
 
