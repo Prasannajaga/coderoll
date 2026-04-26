@@ -13,10 +13,10 @@ Included samples:
 - `file_mode`: Python file-mode evaluation.
 - `js_file_mode`: JavaScript file-mode candidates using Node's built-in test runner.
 - `ts_project_mode`: TypeScript project-mode evaluation with typecheck plus TAP tests.
-- `complex_project_mode`: richer Python project with pricing + inventory modules and broader tests.
+- `complex_project_mode`: richer Python project with nested domain/rules/services layers plus broader tests.
 - `complex_file_mode`: richer Python file-mode candidate pool with pass/partial/timeout/syntax variants.
 - `complex_js_file_mode`: richer JavaScript file-mode candidate pool with pass/partial/timeout/syntax variants.
-- `complex_ts_project_mode`: richer TypeScript project with multi-module order/shipping logic.
+- `complex_ts_project_mode`: richer TypeScript project with nested pricing/rules/checkout modules.
 
 Build the sandbox images once:
 

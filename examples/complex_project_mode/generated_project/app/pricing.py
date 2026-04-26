@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.rules.taxing import apply_tax, clamp_non_negative, to_money
+
 
 @dataclass(frozen=True)
 class LineItem:
@@ -15,7 +17,7 @@ def line_total(item: LineItem) -> float:
         raise ValueError("qty must be >= 0")
     if item.unit_price < 0:
         raise ValueError("unit_price must be >= 0")
-    return round(item.qty * item.unit_price, 2)
+    return to_money(item.qty * item.unit_price)
 
 
 def calculate_order_total(
@@ -24,15 +26,13 @@ def calculate_order_total(
     shipping: float,
     discount: float = 0.0,
 ) -> float:
-    if tax_rate < 0:
-        raise ValueError("tax_rate must be >= 0")
     if shipping < 0:
         raise ValueError("shipping must be >= 0")
 
-    subtotal = round(sum(line_total(item) for item in items), 2)
-    taxed = round(subtotal * (1.0 + tax_rate), 2)
-    total = round(taxed + shipping - discount, 2)
-    return max(total, 0.0)
+    subtotal = to_money(sum(line_total(item) for item in items))
+    tax = apply_tax(subtotal, tax_rate)
+    total = to_money(subtotal + tax + shipping - discount)
+    return clamp_non_negative(total)
 
 
 def build_receipt(
@@ -41,8 +41,8 @@ def build_receipt(
     shipping: float,
     discount: float = 0.0,
 ) -> dict[str, float]:
-    subtotal = round(sum(line_total(item) for item in items), 2)
-    tax = round(subtotal * tax_rate, 2)
+    subtotal = to_money(sum(line_total(item) for item in items))
+    tax = apply_tax(subtotal, tax_rate)
     total = calculate_order_total(
         items=items,
         tax_rate=tax_rate,
@@ -52,7 +52,7 @@ def build_receipt(
     return {
         "subtotal": subtotal,
         "tax": tax,
-        "shipping": round(shipping, 2),
-        "discount": round(discount, 2),
+        "shipping": to_money(shipping),
+        "discount": to_money(discount),
         "total": total,
     }

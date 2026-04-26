@@ -189,20 +189,4 @@ results2 = runner.run_strings(
     ],
 )
 ```
-
-## Security notes
-
-- Docker sandboxing is local isolation, not perfect isolation
-- Network is disabled by default (`--network none`)
-- Memory/CPU/pids limits are enabled by default
-- Avoid running hostile code without stronger isolation
-- Never mount sensitive directories or Docker socket
-- `LocalSubprocessSandbox` is unsafe for untrusted code
-
-## Data format (JSONL)
-
-Each line is a complete run record:
-
-```json
-{"run_id":"run_123","task_id":"file_mode_eval","mode":"file","candidate_id":"good","score":1.0,"passed":true,"stdout":".","stderr":"","files":{"solution.py":"def add_one(x):\n    return x + 1\n"}}
-```
+ 

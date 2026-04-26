@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.utils.iterables import sorted_keys
+
 
 def is_in_stock(stock_by_sku: dict[str, int], sku: str, qty: int = 1) -> bool:
     if qty < 0:
@@ -9,7 +11,7 @@ def is_in_stock(stock_by_sku: dict[str, int], sku: str, qty: int = 1) -> bool:
 
 def allocate_items(stock_by_sku: dict[str, int], requested: dict[str, int]) -> dict[str, int]:
     allocated: dict[str, int] = {}
-    for sku in sorted(requested):
+    for sku in sorted_keys(requested):
         want = requested[sku]
         if want < 0:
             raise ValueError("requested qty must be >= 0")
