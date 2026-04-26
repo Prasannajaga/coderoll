@@ -31,37 +31,52 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>__TITLE__</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #f6f7fb;
+      --bg: #f8f9fc;
       --card: #ffffff;
-      --text: #1a1f2e;
-      --muted: #616b84;
-      --border: #d9deea;
-      --ok-bg: #f0fbf4;
-      --ok-border: #97d6ad;
-      --bad-bg: #fff3f2;
-      --bad-border: #e8a5a1;
-      --accent: #1f5fbf;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --ok: #059669;
+      --ok-bg: #ecfdf5;
+      --ok-border: #a7f3d0;
+      --bad: #dc2626;
+      --bad-bg: #fef2f2;
+      --bad-border: #fca5a5;
+      --warn: #d97706;
+      --warn-bg: #fffbeb;
+      --accent: #4f46e5;
+      --accent-light: #eef2ff;
+      --radius: 10px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,.04);
+      --shadow-md: 0 2px 8px rgba(0,0,0,.06);
+      --transition: 150ms ease;
     }
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; margin: 0; }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       color: var(--text);
-      background: linear-gradient(180deg, #f8f9fd 0%, #f3f5fb 100%);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
     }
     .wrap {
-      max-width: 1400px;
+      max-width: 1360px;
       margin: 0 auto;
-      padding: 20px;
+      padding: 24px 28px;
       display: grid;
-      gap: 16px;
+      gap: 20px;
     }
     h1 {
       margin: 0;
-      font-size: 22px;
-      line-height: 1.2;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.3;
     }
     .subtitle {
       margin-top: 6px;
@@ -70,57 +85,93 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
     }
     .cards {
       display: grid;
-      grid-template-columns: repeat(6, minmax(120px, 1fr));
-      gap: 10px;
+      grid-template-columns: repeat(6, minmax(110px, 1fr));
+      gap: 12px;
     }
     .card {
       background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px 12px;
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow var(--transition), transform var(--transition);
+      position: relative;
+      overflow: hidden;
     }
+    .card:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: var(--border);
+    }
+    .card.card-ok::before { background: var(--ok); }
+    .card.card-bad::before { background: var(--bad); }
+    .card.card-warn::before { background: var(--warn); }
+    .card.card-accent::before { background: var(--accent); }
     .label {
       color: var(--muted);
-      font-size: 12px;
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
       margin-bottom: 6px;
     }
     .value {
-      font-size: 20px;
+      font-size: 22px;
       font-weight: 700;
+      letter-spacing: -0.01em;
     }
     .controls {
       background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px;
+      border-radius: var(--radius);
+      padding: 12px 14px;
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
       align-items: center;
+      box-shadow: var(--shadow-sm);
     }
     input, select, button {
-      font: inherit;
+      font-family: inherit;
+      font-size: 13px;
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 10px;
+      border-radius: 7px;
+      padding: 7px 10px;
       background: #fff;
+      color: var(--text);
+      transition: border-color var(--transition), box-shadow var(--transition);
+      outline: none;
+    }
+    input:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(79,70,229,.1);
     }
     input[type="search"] {
-      min-width: 260px;
+      min-width: 240px;
       flex: 1;
     }
     button {
       cursor: pointer;
-      background: #eef3ff;
-      border-color: #c8d9ff;
-      color: #123f88;
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
       font-weight: 600;
+      font-size: 13px;
+      transition: opacity var(--transition);
     }
+    button:hover { opacity: 0.88; }
     .table-panel, .detail {
       background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: var(--radius);
       overflow: hidden;
+      box-shadow: var(--shadow-sm);
     }
     .table-wrap {
       overflow: auto;
@@ -136,18 +187,26 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
       position: sticky;
       top: 0;
       z-index: 2;
-      background: #f3f6fd;
-      border-bottom: 1px solid var(--border);
-      padding: 8px 10px;
+      background: #f9fafb;
+      border-bottom: 2px solid var(--border);
+      padding: 10px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
     }
     tbody td {
-      border-bottom: 1px solid #eef1f7;
-      padding: 8px 10px;
-      vertical-align: top;
+      border-bottom: 1px solid #f3f4f6;
+      padding: 9px 12px;
+      vertical-align: middle;
+    }
+    tbody tr {
+      transition: background var(--transition);
+      cursor: pointer;
     }
     tbody tr:hover {
-      background: #f7faff;
-      cursor: pointer;
+      background: #f9fafb;
     }
     tbody tr.pass {
       background: var(--ok-bg);
@@ -158,25 +217,31 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
     tbody tr.selected {
       outline: 2px solid var(--accent);
       outline-offset: -2px;
+      background: var(--accent-light);
     }
     .status-pill {
-      display: inline-block;
-      padding: 2px 7px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
       border-radius: 999px;
-      font-size: 12px;
+      font-size: 11px;
+      font-weight: 600;
       border: 1px solid var(--border);
-      background: #fff;
+      background: #f9fafb;
     }
     .status-pill.pass {
       border-color: var(--ok-border);
-      background: #ebf9f1;
+      background: var(--ok-bg);
+      color: var(--ok);
     }
     .status-pill.fail {
       border-color: var(--bad-border);
-      background: #fff0ef;
+      background: var(--bad-bg);
+      color: var(--bad);
     }
     .mono {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
     }
     .snip {
       max-width: 520px;
@@ -193,66 +258,94 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
       min-height: 280px;
     }
     .detail-head {
-      padding: 10px 12px;
+      padding: 12px 16px;
       border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .detail-head strong {
+      font-size: 14px;
+      font-weight: 600;
     }
     .detail-meta {
       display: grid;
       grid-template-columns: repeat(3, minmax(120px, 1fr));
       gap: 8px;
-      padding: 10px 12px;
+      padding: 12px 16px;
       border-bottom: 1px solid var(--border);
+      background: #fafbfc;
     }
     .meta-item {
-      background: #f6f8fe;
-      border: 1px solid #e2e8fa;
+      background: #fff;
+      border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 8px;
+      padding: 10px;
+      transition: box-shadow var(--transition);
+    }
+    .meta-item:hover {
+      box-shadow: var(--shadow-sm);
     }
     .meta-item .label {
       margin: 0 0 4px 0;
+      font-size: 10px;
     }
     .meta-item .value {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
       word-break: break-all;
     }
     .tabs {
       display: flex;
-      gap: 6px;
-      border-bottom: 1px solid var(--border);
-      padding: 8px 10px 0 10px;
-      background: #fafbff;
+      gap: 0;
+      border-bottom: 2px solid var(--border);
+      padding: 0 16px;
+      background: #fafbfc;
     }
     .tab-btn {
-      border: 1px solid var(--border);
-      border-bottom: none;
-      border-radius: 8px 8px 0 0;
-      padding: 7px 10px;
-      background: #f2f5fd;
+      border: none;
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
+      padding: 10px 14px;
+      background: transparent;
       cursor: pointer;
       font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      margin-bottom: -2px;
+      transition: color var(--transition), border-color var(--transition);
+    }
+    .tab-btn:hover {
+      color: var(--text);
     }
     .tab-btn.active {
-      background: #fff;
-      font-weight: 700;
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      font-weight: 600;
     }
     pre {
       margin: 0;
-      padding: 12px;
+      padding: 16px;
       white-space: pre-wrap;
       word-break: break-word;
       overflow: auto;
-      max-height: 34vh;
-      background: #fff;
-      font-size: 12px;
-      line-height: 1.4;
+      max-height: 36vh;
+      background: #1e1e2e;
+      color: #cdd6f4;
+      font-size: 13px;
+      line-height: 1.55;
       border-top: 0;
     }
     @media (max-width: 980px) {
-      .cards { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+      .cards { grid-template-columns: repeat(3, minmax(100px, 1fr)); }
       .detail-meta { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
-      input[type="search"] { min-width: 180px; }
+      input[type="search"] { min-width: 160px; }
+    }
+    @media (max-width: 640px) {
+      .wrap { padding: 16px; gap: 14px; }
+      .cards { grid-template-columns: repeat(2, 1fr); }
+      .detail-meta { grid-template-columns: 1fr; }
+      .tabs { overflow-x: auto; }
     }
   </style>
 </head>
@@ -481,17 +574,17 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
     function renderSummary() {
       const sum = summaryFrom(state.filtered);
       const cards = [
-        ["total candidates", sum.total],
-        ["passed count", sum.passed],
-        ["failed count", sum.failed],
-        ["timeout count", sum.timeout],
-        ["best score", sum.best.toFixed(3)],
-        ["average duration_ms", sum.avgDuration],
+        ["Total", sum.total, "card-accent"],
+        ["Passed", sum.passed, "card-ok"],
+        ["Failed", sum.failed, "card-bad"],
+        ["Timeout", sum.timeout, "card-warn"],
+        ["Best Score", sum.best.toFixed(3), "card-accent"],
+        ["Avg Duration", sum.avgDuration + "ms", ""],
       ];
       ui.cards.innerHTML = "";
-      cards.forEach(([label, value]) => {
+      cards.forEach(([label, value, cls]) => {
         const card = document.createElement("div");
-        card.className = "card";
+        card.className = "card" + (cls ? " " + cls : "");
         const labelEl = document.createElement("div");
         labelEl.className = "label";
         labelEl.textContent = label;
@@ -528,7 +621,7 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
         const statusCell = document.createElement("td");
         const pill = document.createElement("span");
         pill.className = "status-pill " + (record.passed ? "pass" : "fail");
-        pill.textContent = record.passed ? "true" : "false";
+        pill.textContent = record.passed ? "\u2713 pass" : "\u2717 fail";
         statusCell.appendChild(pill);
         tr.appendChild(statusCell);
         addCell(tr, testsText(record), "mono");

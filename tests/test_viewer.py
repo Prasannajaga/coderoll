@@ -35,7 +35,7 @@ def test_render_html_contains_expected_sections() -> None:
     html = render_html([_record()], title="My Report")
 
     assert "My Report" in html
-    assert "total candidates" in html
+    assert '"Total"' in html
     assert "status-filter" in html
     assert "candidate_id" in html
     assert "Export filtered JSON" in html

@@ -39,3 +39,8 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 coderoll = ["templates/*"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
