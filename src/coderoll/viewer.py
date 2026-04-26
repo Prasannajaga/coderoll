@@ -279,6 +279,12 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
       <select id="phase-filter" title="Phase filter">
         <option value="all">all phases</option>
       </select>
+      <select id="candidate-mode-filter" title="Candidate mode filter">
+        <option value="all">all candidate modes</option>
+      </select>
+      <select id="workspace-mode-filter" title="Workspace mode filter">
+        <option value="all">all workspace modes</option>
+      </select>
       <label><input id="partial-only" type="checkbox"> partial only</label>
       <input id="score-min" type="number" min="0" max="1" step="0.01" placeholder="score min">
       <select id="sort-by" title="Sort by">
@@ -296,12 +302,13 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
           <thead>
             <tr>
               <th>candidate_id</th>
-              <th>language</th>
+              <th>candidate_mode</th>
+              <th>workspace_mode</th>
               <th>phase</th>
               <th>score</th>
               <th>passed</th>
               <th>tests</th>
-              <th>build</th>
+              <th>setup</th>
               <th>duration_ms</th>
               <th>exit_code</th>
               <th>timed_out</th>
@@ -336,6 +343,8 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
       status: document.getElementById("status-filter"),
       language: document.getElementById("language-filter"),
       phase: document.getElementById("phase-filter"),
+      candidateMode: document.getElementById("candidate-mode-filter"),
+      workspaceMode: document.getElementById("workspace-mode-filter"),
       partialOnly: document.getElementById("partial-only"),
       scoreMin: document.getElementById("score-min"),
       sort: document.getElementById("sort-by"),
@@ -350,7 +359,7 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
       tabContent: document.getElementById("tab-content"),
     };
 
-    const TAB_NAMES = ["Code", "build stdout", "build stderr", "test stdout", "test stderr", "stdout", "stderr", "Score", "Prompt", "Metadata", "Raw JSON"];
+    const TAB_NAMES = ["Summary", "Files", "Code", "Setup stdout", "Setup stderr", "Command results", "stdout", "stderr", "Score", "Prompt", "Metadata", "Raw JSON"];
     let state = {
       filtered: [],
       selectedIndex: -1,
@@ -380,10 +389,13 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
         record.task_id,
         record.error,
         record.code,
+        record.files ? JSON.stringify(record.files) : "",
         record.stdout,
         record.stderr,
         record.language,
         record.phase,
+        record.candidate_mode,
+        record.workspace_mode,
         record.score_details ? JSON.stringify(record.score_details) : "",
       ].map(asText).join(" ").toLowerCase();
       return haystack.includes(query);
@@ -407,11 +419,23 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
       return asText(record.phase || "").toLowerCase() === phase;
     }
 
+    function matchesCandidateMode(record, mode) {
+      if (mode === "all") return true;
+      return asText(record.candidate_mode || "").toLowerCase() === mode;
+    }
+
+    function matchesWorkspaceMode(record, mode) {
+      if (mode === "all") return true;
+      return asText(record.workspace_mode || "").toLowerCase() === mode;
+    }
+
     function filterSortRecords() {
       const query = ui.search.value.trim().toLowerCase();
       const status = ui.status.value;
       const language = ui.language.value;
       const phase = ui.phase.value;
+      const candidateMode = ui.candidateMode.value;
+      const workspaceMode = ui.workspaceMode.value;
       const partialOnly = ui.partialOnly.checked;
       const minRaw = ui.scoreMin.value.trim();
       const scoreMin = minRaw === "" ? null : Number(minRaw);
@@ -422,6 +446,8 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
           && matchesStatus(r, status)
           && matchesLanguage(r, language)
           && matchesPhase(r, phase)
+          && matchesCandidateMode(r, candidateMode)
+          && matchesWorkspaceMode(r, workspaceMode)
           && (!partialOnly || (score > 0 && !r.passed))
           && (scoreMin === null || score >= scoreMin);
       });
@@ -494,7 +520,8 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
         });
 
         addCell(tr, asText(record.candidate_id), "mono");
-        addCell(tr, asText(record.language || ""), "mono");
+        addCell(tr, asText(record.candidate_mode || ""), "mono");
+        addCell(tr, asText(record.workspace_mode || ""), "mono");
         addCell(tr, asText(record.phase || ""), "mono");
         addCell(tr, Number(record.score || 0).toFixed(3), "mono");
         const statusCell = document.createElement("td");
@@ -504,12 +531,12 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
         statusCell.appendChild(pill);
         tr.appendChild(statusCell);
         addCell(tr, testsText(record), "mono");
-        addCell(tr, buildText(record), "mono");
+        addCell(tr, setupText(record), "mono");
         addCell(tr, asText(record.duration_ms), "mono");
         addCell(tr, asText(record.exit_code), "mono");
         addCell(tr, asText(record.timed_out), "mono");
         addCell(tr, asText(record.error), "mono");
-        const codeTd = addCell(tr, codeSnippet(record.code), "mono snip");
+        const codeTd = addCell(tr, codeSnippet(record.files ? JSON.stringify(record.files) : record.code), "mono snip");
         codeTd.classList.toggle("hidden", !showCode);
 
         ui.rows.appendChild(tr);
@@ -523,7 +550,10 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
       return asText(passed) + "/" + asText(total);
     }
 
-    function buildText(record) {
+    function setupText(record) {
+      if (record.setup_passed !== null && record.setup_passed !== undefined) {
+        return record.setup_passed ? "pass" : "fail";
+      }
       if (record.build_passed === null || record.build_passed === undefined) return "n/a";
       return record.build_passed ? "pass" : "fail";
     }
@@ -567,14 +597,17 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
       const pairs = [
         ["candidate_id", record.candidate_id],
         ["task_id", record.task_id],
+        ["config_id", record.config_id],
+        ["candidate_mode", record.candidate_mode],
+        ["workspace_mode", record.workspace_mode],
         ["language", record.language],
         ["phase", record.phase],
         ["image", record.image],
         ["score", Number(record.score || 0).toFixed(3)],
         ["passed", record.passed],
         ["tests", testsText(record)],
-        ["build", buildText(record)],
-        ["build_exit_code", record.build_exit_code],
+        ["setup", setupText(record)],
+        ["setup_exit_code", record.setup_exit_code],
         ["duration_ms", record.duration_ms],
         ["exit_code", record.exit_code],
         ["code_hash", record.code_hash],
@@ -608,20 +641,31 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
         return;
       }
       const tab = state.activeTab;
-      if (tab === "Code") {
+      if (tab === "Summary") {
+        ui.tabContent.textContent = JSON.stringify({
+          candidate_id: record.candidate_id,
+          score: record.score,
+          passed: record.passed,
+          phase: record.phase,
+          tests_passed: record.tests_passed,
+          tests_total: record.tests_total,
+          duration_ms: record.duration_ms,
+          error: record.error,
+        }, null, 2);
+      } else if (tab === "Files") {
+        ui.tabContent.textContent = record.files ? JSON.stringify(record.files, null, 2) : "";
+      } else if (tab === "Code") {
         ui.tabContent.textContent = asText(record.code);
       } else if (tab === "stdout") {
         ui.tabContent.textContent = asText(record.stdout);
       } else if (tab === "stderr") {
         ui.tabContent.textContent = asText(record.stderr);
-      } else if (tab === "build stdout") {
-        ui.tabContent.textContent = asText(record.build_stdout);
-      } else if (tab === "build stderr") {
-        ui.tabContent.textContent = asText(record.build_stderr);
-      } else if (tab === "test stdout") {
-        ui.tabContent.textContent = asText(record.test_stdout);
-      } else if (tab === "test stderr") {
-        ui.tabContent.textContent = asText(record.test_stderr);
+      } else if (tab === "Setup stdout") {
+        ui.tabContent.textContent = asText(record.setup_stdout || record.build_stdout);
+      } else if (tab === "Setup stderr") {
+        ui.tabContent.textContent = asText(record.setup_stderr || record.build_stderr);
+      } else if (tab === "Command results") {
+        ui.tabContent.textContent = JSON.stringify(record.command_results || [], null, 2);
       } else if (tab === "Score") {
         ui.tabContent.textContent = JSON.stringify(record.score_details || {}, null, 2);
       } else if (tab === "Prompt") {
@@ -663,6 +707,8 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
     ui.status.addEventListener("change", refresh);
     ui.language.addEventListener("change", refresh);
     ui.phase.addEventListener("change", refresh);
+    ui.candidateMode.addEventListener("change", refresh);
+    ui.workspaceMode.addEventListener("change", refresh);
     ui.partialOnly.addEventListener("change", refresh);
     ui.scoreMin.addEventListener("input", refresh);
     ui.sort.addEventListener("change", refresh);
@@ -671,6 +717,8 @@ def render_html(records: list[RunRecord], title: str | None = None) -> str:
 
     populateSelect(ui.language, uniqueValues(records.map((r) => asText(r.language || "").toLowerCase()).filter(Boolean)));
     populateSelect(ui.phase, uniqueValues(records.map((r) => asText(r.phase || "").toLowerCase()).filter(Boolean)));
+    populateSelect(ui.candidateMode, uniqueValues(records.map((r) => asText(r.candidate_mode || "").toLowerCase()).filter(Boolean)));
+    populateSelect(ui.workspaceMode, uniqueValues(records.map((r) => asText(r.workspace_mode || "").toLowerCase()).filter(Boolean)));
     refresh();
 
     function uniqueValues(values) {

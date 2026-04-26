@@ -1,6 +1,7 @@
 import pytest
 
 from coderoll.result import ExecutionResult
+from coderoll.result import CommandResult
 from coderoll.scoring import compute_score
 
 
@@ -48,3 +49,71 @@ def test_compute_score_timeout() -> None:
     assert score.value == 0.0
     assert score.timeout_penalty == 0.25
     assert score.passed is False
+
+
+def test_compute_score_two_commands_one_fails() -> None:
+    score = compute_score(
+        _execution(
+            exit_code=1,
+            setup_passed=True,
+            command_results=[
+                CommandResult(None, "typecheck", "eval", 0, "", "", 1, False),
+                CommandResult(None, "test", "eval", 1, "", "", 1, False),
+            ],
+        )
+    )
+
+    assert score.value == pytest.approx(0.5)
+    assert score.passed is False
+
+
+def test_compute_score_command_structured_tests() -> None:
+    score = compute_score(
+        _execution(
+            exit_code=1,
+            setup_passed=True,
+            command_results=[
+                CommandResult(
+                    None,
+                    "test",
+                    "eval",
+                    1,
+                    "",
+                    "",
+                    1,
+                    False,
+                    tests_total=5,
+                    tests_passed=3,
+                )
+            ],
+        )
+    )
+
+    assert score.value == pytest.approx(0.6)
+
+
+def test_compute_score_setup_failure() -> None:
+    score = compute_score(
+        _execution(
+            exit_code=1,
+            setup_passed=False,
+            command_results=[CommandResult(None, "setup", "setup", 1, "", "", 1, False)],
+        )
+    )
+
+    assert score.value == 0.0
+    assert score.passed is False
+
+
+def test_compute_score_command_timeout_penalty() -> None:
+    score = compute_score(
+        _execution(
+            exit_code=-1,
+            timed_out=True,
+            setup_passed=True,
+            command_results=[CommandResult(None, "test", "eval", -1, "", "", 1, True)],
+        )
+    )
+
+    assert score.value == 0.0
+    assert score.timeout_penalty == 0.25

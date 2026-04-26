@@ -43,14 +43,23 @@ Python package runtime dependencies stay empty. JavaScript and TypeScript toolin
 Preferred usage puts all runtime arguments in a YAML or TOML config:
 
 ```bash
-coderoll run examples/python_add_one.yaml
-coderoll run examples/js_add_one.yaml
-coderoll run examples/ts_add_one.yaml
+coderoll run examples/project_python/experiment.yaml
+coderoll run examples/single_candidate/experiment.yaml
+coderoll run examples/directory_candidate/experiment.yaml
 # also supported:
-coderoll run --config examples/python_add_one.yaml
+coderoll run --config examples/project_python/experiment.yaml
 ```
 
 Config files contain task path, candidates path, output path, workers, sandbox settings, and viewer settings. Relative paths resolve from the config file directory.
+
+The example suite covers the main candidate input modes:
+
+- `examples/project_python`: JSONL multi-file candidates over a base project
+- `examples/single_candidate`: one `candidate.json` with `code`
+- `examples/json_array`: one JSON file containing multiple code candidates
+- `examples/directory_candidate`: a whole candidate directory copied over the base project
+- `examples/candidate_dependencies`: candidate-level dependency commands inside Docker
+- `examples/multi_command_eval`: compile plus test commands with partial scoring
 
 TOML configs work dependency-free through stdlib `tomllib`. YAML configs require the optional extra:
 
@@ -70,39 +79,40 @@ coderoll init-config coderoll.yaml
 The older task-directory CLI still works:
 
 ```bash
-coderoll run examples/add_one --candidates examples/add_one/candidates.jsonl --out runs/add_one.jsonl
-coderoll run examples/add_one --candidate solution.py --out runs/add_one.single.jsonl
+coderoll init tmp/scratch_task
+coderoll run tmp/scratch_task --candidates tmp/scratch_task/candidates.jsonl --out runs/scratch_task.jsonl
+coderoll run tmp/scratch_task --candidate solution.py --out runs/scratch_task.single.jsonl
 ```
 
 ## Create a Python Task
 
 ```bash
-coderoll init examples/add_one
+coderoll init examples/scratch_task
 ```
 
 ## Rank results
 
 ```bash
-coderoll rank runs/add_one.jsonl --top 5
-coderoll rank runs/add_one.jsonl --top 5 --show-code
-coderoll rank runs/add_one.jsonl --passed
-coderoll rank runs/add_one.jsonl --failed
+coderoll rank runs/project_python_results.jsonl --top 5
+coderoll rank runs/project_python_results.jsonl --top 5 --show-code
+coderoll rank runs/project_python_results.jsonl --passed
+coderoll rank runs/project_python_results.jsonl --failed
 ```
 
 ## Inspect one candidate
 
 ```bash
-coderoll inspect runs/add_one.jsonl --id good
+coderoll inspect runs/project_python_results.jsonl --id files_good
 ```
 
 ## Viewing results locally
 
 ```bash
-coderoll view runs/add_one.jsonl
-coderoll view runs/add_one.jsonl --out reports/add_one.html --no-open
+coderoll view runs/project_python_results.jsonl
+coderoll view runs/project_python_results.jsonl --out reports/project_python.html --no-open
 ```
 
-This generates a standalone static HTML report (for example `runs/add_one.viewer.html`).
+This generates a standalone static HTML report (for example `runs/project_python.viewer.html`).
 No server is required, no runtime dependencies are added, and the report can be shared as a single file.
 
 ## Exporting datasets
@@ -118,10 +128,10 @@ No training is performed. These are plain data conversions only.
    all candidates with score as reward
 
 ```bash
-coderoll export runs/add_one.jsonl --format sft --out datasets/sft.jsonl
-coderoll export runs/add_one.jsonl --format preference --out datasets/preferences.jsonl
-coderoll export runs/add_one.jsonl --format rewards --out datasets/rewards.jsonl
-coderoll export runs/add_one.jsonl --format rewards --out datasets/rewards_meta.jsonl --include-metadata
+coderoll export runs/project_python_results.jsonl --format sft --out datasets/sft.jsonl
+coderoll export runs/project_python_results.jsonl --format preference --out datasets/preferences.jsonl
+coderoll export runs/project_python_results.jsonl --format rewards --out datasets/rewards.jsonl
+coderoll export runs/project_python_results.jsonl --format rewards --out datasets/rewards_meta.jsonl --include-metadata
 ```
 
 `stdout`/`stderr` are excluded by default.
@@ -139,17 +149,22 @@ from coderoll import (
     Runner,
 )
 
-task = Task.from_dir("examples/add_one")
+task = Task.from_dir("tmp/scratch_task")
 
 candidates = [
-    Candidate(code="def solution(x): return x + 1", id="good"),
-    Candidate(code="def solution(x): return x", id="bad"),
+    Candidate(
+        code=(
+            "def solution(x):\n"
+            "    return x + 1\n"
+        ),
+        id="api_good",
+    ),
 ]
 
 runner = Runner(
     sandbox=DockerSandbox(timeout=5),
     evaluator=PytestEvaluator(),
-    store=JsonlStore("runs/add_one.jsonl"),
+    store=JsonlStore("runs/scratch_task.jsonl"),
 )
 
 results = runner.run(task, candidates)
@@ -159,8 +174,7 @@ print(results.top_k(3))
 results2 = runner.run_strings(
     task,
     [
-        "def solution(x): return x + 1",
-        "def solution(x): return x",
+        "def solution(x):\n    return x + 1\n",
     ],
 )
 ```
@@ -179,5 +193,5 @@ results2 = runner.run_strings(
 Each line is a complete run record:
 
 ```json
-{"run_id":"run_123","task_id":"add_one","candidate_id":"good","score":1.0,"passed":true,"stdout":".","stderr":"","code":"def solution(x): return x + 1"}
+{"run_id":"run_123","task_id":"project_python_eval","candidate_id":"files_good","score":1.0,"passed":true,"stdout":".","stderr":"","files":{"app/math_utils.py":"def add_one(x):\n    return x + 1\n"}}
 ```

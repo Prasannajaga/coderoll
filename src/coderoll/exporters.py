@@ -25,11 +25,15 @@ def export_sft(
         )
         row: dict[str, Any] = {
             "prompt": best.prompt,
-            "completion": best.code,
             "task_id": best.task_id,
             "candidate_id": best.candidate_id,
+            "candidate_mode": best.candidate_mode or ("files" if best.files else "file"),
             "score": best.score,
         }
+        if best.files:
+            row["files"] = best.files
+        else:
+            row["completion"] = best.code
         if include_metadata:
             row["metadata"] = {
                 "passed": best.passed,
@@ -78,14 +82,15 @@ def export_preferences(
 
         row = {
             "prompt": chosen.prompt,
-            "chosen": chosen.code,
-            "rejected": rejected.code,
             "task_id": chosen.task_id,
+            "candidate_mode": chosen.candidate_mode or ("files" if chosen.files else "file"),
             "chosen_id": chosen.candidate_id,
             "rejected_id": rejected.candidate_id,
             "chosen_score": chosen.score,
             "rejected_score": rejected.score,
         }
+        row["chosen"] = _candidate_payload(chosen)
+        row["rejected"] = _candidate_payload(rejected)
         if include_metadata:
             row["metadata"] = {
                 "chosen_duration_ms": chosen.duration_ms,
@@ -121,13 +126,17 @@ def export_rewards(
     for record in ordered:
         row: dict[str, Any] = {
             "prompt": record.prompt,
-            "completion": record.code,
             "reward": record.score,
             "task_id": record.task_id,
             "candidate_id": record.candidate_id,
+            "candidate_mode": record.candidate_mode or ("files" if record.files else "file"),
             "passed": record.passed,
             "score": record.score,
         }
+        if record.files:
+            row["files"] = record.files
+        else:
+            row["completion"] = record.code
         if include_metadata:
             row["metadata"] = {
                 "duration_ms": record.duration_ms,
@@ -157,3 +166,9 @@ def _write_jsonl(rows: list[dict[str, Any]], out_path: str | Path) -> None:
         for row in rows:
             handle.write(json.dumps(row, ensure_ascii=False))
             handle.write("\n")
+
+
+def _candidate_payload(record: RunRecord) -> Any:
+    if record.files:
+        return {"files": record.files, "candidate_mode": record.candidate_mode or "files"}
+    return record.code

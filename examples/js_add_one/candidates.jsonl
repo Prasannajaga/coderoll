@@ -1,2 +1,0 @@
-{"id":"good_js","code":"function solution(x) { return x + 1; }\nmodule.exports = { solution };"}
-{"id":"bad_js","code":"function solution(x) { return x; }\nmodule.exports = { solution };"}

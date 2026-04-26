@@ -1,6 +1,0 @@
-{
-  "type": "module",
-  "scripts": {
-    "test": "node --import tsx --test test_solution.test.ts"
-  }
-}

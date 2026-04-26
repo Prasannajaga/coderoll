@@ -44,7 +44,7 @@ class LocalSubprocessSandbox:
 
             entry_path = workspace / task.entry_file
             entry_path.parent.mkdir(parents=True, exist_ok=True)
-            entry_path.write_text(candidate.code, encoding="utf-8")
+            entry_path.write_text(candidate.code or "", encoding="utf-8")
 
             test_target = workspace / task.test_file
             test_target.parent.mkdir(parents=True, exist_ok=True)

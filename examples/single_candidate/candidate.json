@@ -1,0 +1,4 @@
+{
+  "id": "single_json_good",
+  "code": "def add_one(x):\n    return x + 1\n"
+}

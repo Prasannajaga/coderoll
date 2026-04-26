@@ -39,6 +39,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 workers=args.workers,
                 config_path=Path(args.config) if args.config else None,
             )
+        elif args.command == "validate-config":
+            _cmd_validate_config(Path(args.config))
         elif args.command == "rank":
             _cmd_rank(
                 results_path=Path(args.results_jsonl),
@@ -108,6 +110,12 @@ def _build_parser() -> ArgumentParser:
     run_parser.add_argument("--out", help="Output JSONL file")
     run_parser.add_argument("--workers", type=int, default=1, help="Parallel workers")
     run_parser.add_argument("--config", help="Run configuration file (.toml/.yaml/.yml)")
+
+    validate_parser = subparsers.add_parser(
+        "validate-config",
+        help="Validate and print a normalized run config without executing Docker",
+    )
+    validate_parser.add_argument("config", help="Run configuration file (.toml/.yaml/.yml)")
 
     rank_parser = subparsers.add_parser("rank", help="Rank candidates from a results JSONL")
     rank_parser.add_argument("results_jsonl", help="Results JSONL path")
@@ -361,7 +369,7 @@ def _cmd_run_from_config(config_path: Path) -> None:
     cfg = load_config(config_path)
     results = run_from_config(cfg)
     _print_run_summary(
-        task_id=Task.from_dir(cfg.task_path).id,
+        task_id=Task.from_dir(cfg.task_path).id if cfg.task_path is not None else cfg.id,
         output_path=cfg.output_path,
         summary=results.summary(),
         errors=[record.error for record in results.records if record.error],
@@ -413,8 +421,14 @@ def _cmd_rank(
             f"duration_ms={record.duration_ms}"
         )
         if show_code:
-            print("--- code ---")
-            print(record.code)
+            if record.files:
+                print("--- files ---")
+                for path, content in sorted(record.files.items()):
+                    print(f"### {path}")
+                    print(content)
+            else:
+                print("--- code ---")
+                print(record.code)
             print("------------")
 
 
@@ -440,6 +454,27 @@ def _cmd_inspect(results_path: Path, candidate_id: str) -> None:
     print(match.stderr)
     print("code:")
     print(match.code)
+    if match.files:
+        print("files:")
+        for path, content in sorted(match.files.items()):
+            print(f"--- {path} ---")
+            print(content)
+
+
+def _cmd_validate_config(config_path: Path) -> None:
+    cfg = load_config(config_path)
+    from dataclasses import asdict
+    import json
+
+    data = asdict(cfg)
+    data["base_dir"] = str(cfg.base_dir)
+    if cfg.task_path is not None:
+        data["task_path"] = str(cfg.task_path)
+    data["candidates_path"] = str(cfg.candidates_path)
+    data["output_path"] = str(cfg.output_path)
+    data["workspace"]["path"] = str(cfg.workspace.path) if cfg.workspace.path else None
+    data["candidates"]["path"] = str(cfg.candidates.path)
+    print(json.dumps(data, indent=2, default=str))
 
 
 def _print_run_summary(

@@ -109,6 +109,76 @@ def test_load_config_invalid_workers(tmp_path: Path) -> None:
         load_config(cfg_path)
 
 
+def test_load_new_workspace_config_relative_paths(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    candidates = tmp_path / "candidates.jsonl"
+    candidates.write_text('{"files":{"solution.py":"x = 1"}}\n', encoding="utf-8")
+    cfg_path = tmp_path / "experiment.toml"
+    cfg_path.write_text(
+        'id = "project_eval"\n\n'
+        "[workspace]\n"
+        'mode = "project"\n'
+        'path = "project"\n\n'
+        "[candidates]\n"
+        'type = "jsonl"\n'
+        'path = "candidates.jsonl"\n'
+        'mode = "files"\n\n'
+        "[[eval.commands]]\n"
+        'name = "tests"\n'
+        'command = "python -m pytest"\n'
+        'result_format = "junit"\n\n'
+        "[output]\n"
+        'path = "runs/results.jsonl"\n',
+        encoding="utf-8",
+    )
+
+    cfg = load_config(cfg_path)
+
+    assert cfg.workspace.mode == "project"
+    assert cfg.workspace.path == project.resolve()
+    assert cfg.candidates.type == "jsonl"
+    assert cfg.candidates.mode == "files"
+    assert cfg.eval.commands[0].name == "tests"
+    assert cfg.eval.commands[0].result_format == "junit"
+    assert cfg.output_path == (tmp_path / "runs" / "results.jsonl").resolve()
+
+
+def test_load_new_config_setup_and_simple_eval_commands(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    candidates = tmp_path / "candidate.json"
+    candidates.write_text('{"code":"x = 1"}', encoding="utf-8")
+    cfg_path = tmp_path / "experiment.toml"
+    cfg_path.write_text(
+        'id = "single_eval"\n\n'
+        "[workspace]\n"
+        'mode = "project"\n'
+        'path = "project"\n\n'
+        "[candidates]\n"
+        'type = "json"\n'
+        'path = "candidate.json"\n'
+        'mode = "file"\n'
+        'entry_file = "solution.py"\n\n'
+        "[setup]\n"
+        'commands = ["python -m pip install -r requirements.txt"]\n'
+        "allow_candidate_dependencies = true\n\n"
+        "[eval]\n"
+        'commands = ["python -m pytest"]\n'
+        'result_format = "exit_code"\n\n'
+        "[output]\n"
+        'path = "runs/results.jsonl"\n',
+        encoding="utf-8",
+    )
+
+    cfg = load_config(cfg_path)
+
+    assert cfg.setup.commands == ["python -m pip install -r requirements.txt"]
+    assert cfg.setup.allow_candidate_dependencies is True
+    assert cfg.eval.commands[0].command == "python -m pytest"
+    assert cfg.candidates.entry_file == "solution.py"
+
+
 def test_init_config_toml_generation(tmp_path: Path) -> None:
     cfg_path = tmp_path / "coderoll.toml"
     exit_code = main(["init-config", str(cfg_path)])

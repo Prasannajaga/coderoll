@@ -1,0 +1,2 @@
+{"id":"deps_command_good","files":{"app/slugify.py":"import re\n\n\ndef slugify(text):\n    return re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')\n"},"dependencies":{"commands":["python -c \"from pathlib import Path; Path('.candidate_dep_ready').write_text('ok')\""]}}
+{"id":"deps_command_bad","files":{"app/slugify.py":"def slugify(text):\n    return text\n"},"dependencies":{"commands":["python -c \"from pathlib import Path; Path('.candidate_dep_ready').write_text('ok')\""]}}

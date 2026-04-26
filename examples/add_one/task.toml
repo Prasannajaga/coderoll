@@ -1,5 +1,0 @@
-id = "add_one"
-entry_file = "solution.py"
-test_file = "test_solution.py"
-test_command = "python -m pytest -q"
-timeout = 5

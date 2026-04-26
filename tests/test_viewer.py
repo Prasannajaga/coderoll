@@ -42,6 +42,17 @@ def test_render_html_contains_expected_sections() -> None:
     assert "Raw JSON" in html
 
 
+def test_render_html_handles_files_candidate() -> None:
+    record = _record()
+    record.code = ""
+    record.files = {"solution.py": "x = 1"}
+    record.candidate_mode = "files"
+    html = render_html([record], title="Files")
+
+    assert "candidate-mode-filter" in html
+    assert "solution.py" in html
+
+
 def test_write_viewer_writes_file(tmp_path: Path) -> None:
     out = tmp_path / "report.html"
     written = write_viewer([_record("cand_x")], out, title="X")

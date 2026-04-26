@@ -1,1 +1,0 @@
-Write a typed function solution(x: number): number that returns x + 1.

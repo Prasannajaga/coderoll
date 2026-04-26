@@ -1,0 +1,2 @@
+{"id":"multi_command_good","files":{"app/math_utils.py":"def add_one(x):\n    return x + 1\n"}}
+{"id":"multi_command_partial","files":{"app/math_utils.py":"def add_one(x):\n    return x\n"}}

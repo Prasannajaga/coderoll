@@ -1,0 +1,10 @@
+[
+  {
+    "id": "array_good",
+    "code": "def normalize_name(value):\n    return value.strip().lower()\n"
+  },
+  {
+    "id": "array_bad",
+    "code": "def normalize_name(value):\n    return value\n"
+  }
+]
