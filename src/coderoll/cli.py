@@ -10,7 +10,7 @@ from .config import load_config
 from .errors import CandidateError, CoderollError, StoreError
 from .evaluators.pytest_eval import PytestEvaluator
 from .exporters import export_preferences, export_rewards, export_sft
-from .rankers.simple import rank_records
+from .rankers.simple import explain_rank, rank_records
 from .runner import Runner, run_from_config
 from .runtimes import get_runtime
 from .sandboxes.docker_cli import DockerSandbox
@@ -45,6 +45,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             _cmd_rank(
                 results_path=Path(args.results_jsonl),
                 top=args.top,
+                profile=args.profile,
+                show_reason=args.show_reason,
+                group_by=args.group_by,
                 show_code=args.show_code,
                 only_failed=args.failed,
                 only_passed=args.passed,
@@ -119,7 +122,23 @@ def _build_parser() -> ArgumentParser:
 
     rank_parser = subparsers.add_parser("rank", help="Rank candidates from a results JSONL")
     rank_parser.add_argument("results_jsonl", help="Results JSONL path")
+    rank_parser.add_argument(
+        "--profile",
+        choices=("default", "strict", "debug"),
+        default="default",
+        help="Ranking profile to use",
+    )
     rank_parser.add_argument("--top", type=int, default=5, help="Number of top results")
+    rank_parser.add_argument(
+        "--show-reason",
+        action="store_true",
+        help="Print rank reason for each candidate",
+    )
+    rank_parser.add_argument(
+        "--group-by",
+        choices=("config_id", "mode", "candidate_mode", "phase", "passed"),
+        help="Group records before ranking",
+    )
     rank_parser.add_argument("--show-code", action="store_true", help="Print code blocks")
     rank_parser.add_argument("--failed", action="store_true", help="Show only failed records")
     rank_parser.add_argument("--passed", action="store_true", help="Show only passed records")
@@ -411,6 +430,9 @@ def _is_config_path(path: Path) -> bool:
 def _cmd_rank(
     results_path: Path,
     top: int,
+    profile: str,
+    show_reason: bool,
+    group_by: str | None,
     show_code: bool,
     only_failed: bool,
     only_passed: bool,
@@ -424,21 +446,55 @@ def _cmd_rank(
     if only_passed:
         records = [record for record in records if record.passed]
 
-    ranked = rank_records(records)
-    if top > 0:
-        ranked = ranked[:top]
-
-    if not ranked:
+    if not records:
         print("No matching records found")
         return
 
-    for record in ranked:
-        print(
-            f"candidate_id={record.candidate_id} "
-            f"score={record.score:.3f} "
-            f"passed={record.passed} "
-            f"duration_ms={record.duration_ms}"
+    if group_by is None:
+        ranked = rank_records(records, profile=profile)
+        if top > 0:
+            ranked = ranked[:top]
+        _print_ranked_records(ranked, show_reason=show_reason, show_code=show_code)
+        return
+
+    grouped: dict[str, list] = {}
+    for record in records:
+        group_value = getattr(record, group_by, None)
+        group_label = "unknown" if group_value is None else str(group_value)
+        grouped.setdefault(group_label, []).append(record)
+
+    for group_label in sorted(grouped):
+        ranked = rank_records(grouped[group_label], profile=profile)
+        if top > 0:
+            ranked = ranked[:top]
+        if not ranked:
+            continue
+        print(f"[{group_by}={group_label}]")
+        _print_ranked_records(ranked, show_reason=show_reason, show_code=show_code)
+        print()
+
+
+def _print_ranked_records(records: list, show_reason: bool, show_code: bool) -> None:
+    if not records:
+        print("No matching records found")
+        return
+
+    for index, record in enumerate(records, start=1):
+        info = explain_rank(record)
+        tests_part = ""
+        if getattr(record, "tests_total", None) is not None:
+            tests_part = f" tests={info['tests_passed']}/{info['tests_total']}"
+        line = (
+            f"{index}. candidate_id={info['candidate_id']} "
+            f"score={info['score']:.3f} "
+            f"passed={info['passed']} "
+            f"phase={info['phase'] if info['phase'] is not None else 'unknown'}"
+            f"{tests_part} "
+            f"duration_ms={info['duration_ms']}"
         )
+        if show_reason:
+            line = f"{line} reason={info['reason']}"
+        print(line)
         if show_code:
             if record.files:
                 print("--- files ---")

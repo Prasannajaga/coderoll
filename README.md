@@ -16,7 +16,7 @@ coderoll init-config PATH [--force]
 coderoll build-image [--runtime python|javascript|typescript] [--tag TAG]
 coderoll run CONFIG.{toml,yaml,yml}
 coderoll run TASK_DIR [--candidate FILE | --candidates FILE.jsonl] --out RESULTS.jsonl [--workers N]
-coderoll rank RESULTS.jsonl [--top N] [--show-code] [--passed | --failed]
+coderoll rank RESULTS.jsonl [--profile default|strict|debug] [--top N] [--show-reason] [--group-by config_id|mode|candidate_mode|phase|passed] [--show-code] [--passed | --failed]
 coderoll inspect RESULTS.jsonl --id CANDIDATE_ID
 coderoll view RESULTS.jsonl [--out REPORT.html] [--title TITLE] [--no-open]
 coderoll export RESULTS.jsonl --format {sft,preference,rewards} --out DATASET.jsonl [--include-metadata]
@@ -103,6 +103,9 @@ coderoll init examples/scratch_task
 ```bash
 coderoll rank runs/file_mode_results.jsonl --top 5
 coderoll rank runs/file_mode_results.jsonl --top 5 --show-code
+coderoll rank runs/file_mode_results.jsonl --profile strict --top 10
+coderoll rank runs/file_mode_results.jsonl --profile debug --show-reason
+coderoll rank runs/file_mode_results.jsonl --group-by mode --top 5
 coderoll rank runs/file_mode_results.jsonl --passed
 coderoll rank runs/file_mode_results.jsonl --failed
 ```

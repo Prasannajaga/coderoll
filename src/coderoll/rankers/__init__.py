@@ -1,3 +1,31 @@
-from .simple import rank_records
+from .simple import (
+    candidate_size,
+    debug_phase_rank,
+    debug_rank_key,
+    default_rank_key,
+    explain_rank,
+    has_structured_tests,
+    phase_rank,
+    rank_records,
+    safe_bool,
+    safe_float,
+    safe_int,
+    strict_rank_key,
+    test_pass_ratio,
+)
 
-__all__ = ["rank_records"]
+__all__ = [
+    "rank_records",
+    "phase_rank",
+    "debug_phase_rank",
+    "default_rank_key",
+    "strict_rank_key",
+    "debug_rank_key",
+    "explain_rank",
+    "safe_float",
+    "safe_int",
+    "safe_bool",
+    "test_pass_ratio",
+    "candidate_size",
+    "has_structured_tests",
+]

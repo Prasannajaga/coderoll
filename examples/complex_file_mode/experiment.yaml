@@ -1,0 +1,39 @@
+id: complex_file_mode_eval
+
+mode: file
+
+candidates:
+  path: candidates.jsonl
+  type: jsonl
+
+file:
+  code_file: solution.py
+  test_file: test_solution.py
+
+setup:
+  commands: []
+
+eval:
+  commands:
+    - name: tests
+      command: python -m pytest -q --junitxml=.coderoll-results.xml
+      result_format: junit
+
+output:
+  path: ../../runs/complex_file_mode_results.jsonl
+
+runner:
+  workers: 3
+
+sandbox:
+  image: coderoll-python:3.11
+  timeout: 8
+  memory: 512m
+  cpus: "1"
+  pids_limit: 128
+  network: false
+
+viewer:
+  enabled: true
+  out: ../../runs/complex_file_mode.viewer.html
+  open: false

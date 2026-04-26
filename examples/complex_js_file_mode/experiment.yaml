@@ -1,0 +1,29 @@
+id: complex_js_file_mode_eval
+
+mode: file
+language: javascript
+
+candidates:
+  path: candidates.jsonl
+  type: jsonl
+
+setup:
+  commands: []
+
+output:
+  path: ../../runs/complex_js_file_mode_results.jsonl
+
+runner:
+  workers: 3
+
+sandbox:
+  timeout: 8
+  memory: 512m
+  cpus: "1"
+  pids_limit: 128
+  network: false
+
+viewer:
+  enabled: true
+  out: ../../runs/complex_js_file_mode.viewer.html
+  open: false

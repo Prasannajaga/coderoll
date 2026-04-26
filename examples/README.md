@@ -13,6 +13,10 @@ Included samples:
 - `file_mode`: Python file-mode evaluation.
 - `js_file_mode`: JavaScript file-mode candidates using Node's built-in test runner.
 - `ts_project_mode`: TypeScript project-mode evaluation with typecheck plus TAP tests.
+- `complex_project_mode`: richer Python project with pricing + inventory modules and broader tests.
+- `complex_file_mode`: richer Python file-mode candidate pool with pass/partial/timeout/syntax variants.
+- `complex_js_file_mode`: richer JavaScript file-mode candidate pool with pass/partial/timeout/syntax variants.
+- `complex_ts_project_mode`: richer TypeScript project with multi-module order/shipping logic.
 
 Build the sandbox images once:
 
@@ -29,6 +33,10 @@ uv run --with pyyaml python -m coderoll validate-config examples/project_mode/ex
 uv run --with pyyaml python -m coderoll validate-config examples/file_mode/experiment.yaml
 uv run --with pyyaml python -m coderoll validate-config examples/js_file_mode/experiment.yaml
 uv run --with pyyaml python -m coderoll validate-config examples/ts_project_mode/experiment.yaml
+uv run --with pyyaml python -m coderoll validate-config examples/complex_project_mode/experiment.yaml
+uv run --with pyyaml python -m coderoll validate-config examples/complex_file_mode/experiment.yaml
+uv run --with pyyaml python -m coderoll validate-config examples/complex_js_file_mode/experiment.yaml
+uv run --with pyyaml python -m coderoll validate-config examples/complex_ts_project_mode/experiment.yaml
 ```
 
 Run the samples:
@@ -38,12 +46,20 @@ uv run --with pyyaml python -m coderoll run examples/project_mode/experiment.yam
 uv run --with pyyaml python -m coderoll run examples/file_mode/experiment.yaml
 uv run --with pyyaml python -m coderoll run examples/js_file_mode/experiment.yaml
 uv run --with pyyaml python -m coderoll run examples/ts_project_mode/experiment.yaml
+uv run --with pyyaml python -m coderoll run examples/complex_project_mode/experiment.yaml
+uv run --with pyyaml python -m coderoll run examples/complex_file_mode/experiment.yaml
+uv run --with pyyaml python -m coderoll run examples/complex_js_file_mode/experiment.yaml
+uv run --with pyyaml python -m coderoll run examples/complex_ts_project_mode/experiment.yaml
 ```
 
 Inspect outputs:
 
 ```bash
 uv run python -m coderoll rank runs/file_mode_results.jsonl
+uv run python -m coderoll rank runs/complex_file_mode_results.jsonl --profile default --show-reason
+uv run python -m coderoll rank runs/complex_file_mode_results.jsonl --profile strict --top 10 --show-reason
+uv run python -m coderoll rank runs/complex_file_mode_results.jsonl --profile debug --show-reason
+uv run python -m coderoll rank runs/complex_js_file_mode_results.jsonl --profile debug --show-reason
 uv run python -m coderoll view runs/file_mode_results.jsonl --no-open
 uv run python -m coderoll export runs/file_mode_results.jsonl --format rewards --out datasets/file_rewards.jsonl
 ```
