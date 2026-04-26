@@ -12,6 +12,7 @@ class CommandResult:
     stderr: str
     duration_ms: int
     timed_out: bool
+    result_format: str = "exit_code"
     tests_total: int | None = None
     tests_passed: int | None = None
     tests_failed: int | None = None
@@ -23,6 +24,7 @@ class CommandResult:
             "name": self.name,
             "command": self.command,
             "phase": self.phase,
+            "result_format": self.result_format,
             "exit_code": self.exit_code,
             "stdout": self.stdout,
             "stderr": self.stderr,
@@ -46,6 +48,7 @@ class CommandResult:
             stderr=str(data.get("stderr", "")),
             duration_ms=int(data.get("duration_ms", 0)),
             timed_out=bool(data.get("timed_out", False)),
+            result_format=str(data.get("result_format", "exit_code")),
             tests_total=_optional_int(data.get("tests_total")),
             tests_passed=_optional_int(data.get("tests_passed")),
             tests_failed=_optional_int(data.get("tests_failed")),
@@ -130,7 +133,9 @@ class RunRecord:
     test_stdout: str = ""
     test_stderr: str = ""
     config_id: str | None = None
+    mode: str | None = None
     candidate_mode: str | None = None
+    project_path: str | None = None
     workspace_mode: str | None = None
     files: dict[str, str] = field(default_factory=dict)
     files_hash: str = ""
@@ -139,6 +144,7 @@ class RunRecord:
     setup_stdout: str = ""
     setup_stderr: str = ""
     setup_duration_ms: int = 0
+    setup_results: list[CommandResult] = field(default_factory=list)
     command_results: list[CommandResult] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -147,8 +153,10 @@ class RunRecord:
             "created_at": self.created_at,
             "task_id": self.task_id,
             "config_id": self.config_id,
+            "mode": self.mode,
             "candidate_id": self.candidate_id,
             "candidate_mode": self.candidate_mode,
+            "project_path": self.project_path,
             "workspace_mode": self.workspace_mode,
             "prompt": self.prompt,
             "code": self.code,
@@ -186,6 +194,7 @@ class RunRecord:
             "setup_stdout": self.setup_stdout,
             "setup_stderr": self.setup_stderr,
             "setup_duration_ms": self.setup_duration_ms,
+            "setup_results": [result.to_dict() for result in self.setup_results],
             "command_results": [result.to_dict() for result in self.command_results],
         }
 
@@ -196,8 +205,10 @@ class RunRecord:
             created_at=str(data.get("created_at", "")),
             task_id=str(data.get("task_id", "")),
             config_id=_optional_str(data.get("config_id")),
+            mode=_optional_str(data.get("mode")),
             candidate_id=str(data.get("candidate_id", "")),
             candidate_mode=_optional_str(data.get("candidate_mode")),
+            project_path=_optional_str(data.get("project_path")),
             workspace_mode=_optional_str(data.get("workspace_mode")),
             prompt=str(data.get("prompt", "")),
             code=str(data.get("code", "")),
@@ -235,6 +246,7 @@ class RunRecord:
             setup_stdout=str(data.get("setup_stdout", "")),
             setup_stderr=str(data.get("setup_stderr", "")),
             setup_duration_ms=int(data.get("setup_duration_ms", 0) or 0),
+            setup_results=_command_results_from_data(data.get("setup_results")),
             command_results=_command_results_from_data(data.get("command_results")),
         )
 

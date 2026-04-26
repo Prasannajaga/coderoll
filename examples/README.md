@@ -1,6 +1,9 @@
 # coderoll examples
 
-These examples cover the current config-first evaluation flow.
+The config-first API has two modes:
+
+- `project`: evaluate one complete generated project directory.
+- `file`: evaluate JSON/JSONL candidates that each contain generated files.
 
 Build the Python sandbox image once:
 
@@ -11,33 +14,26 @@ uv run python -m coderoll build-image --runtime python --tag coderoll-python:3.1
 YAML configs require PyYAML in the calling environment:
 
 ```bash
-uv run --with pyyaml python -m coderoll validate-config examples/project_python/experiment.yaml
+uv run --with pyyaml python -m coderoll validate-config examples/project_mode/experiment.yaml
+uv run --with pyyaml python -m coderoll validate-config examples/file_mode/experiment.yaml
 ```
 
-Run each sample:
+Run the samples:
 
 ```bash
-uv run --with pyyaml python -m coderoll run examples/project_python/experiment.yaml
-uv run --with pyyaml python -m coderoll run examples/single_candidate/experiment.yaml
-uv run --with pyyaml python -m coderoll run examples/json_array/experiment.yaml
-uv run --with pyyaml python -m coderoll run examples/directory_candidate/experiment.yaml
-uv run --with pyyaml python -m coderoll run examples/candidate_dependencies/experiment.yaml
-uv run --with pyyaml python -m coderoll run examples/multi_command_eval/experiment.yaml
+uv run --with pyyaml python -m coderoll run examples/project_mode/experiment.yaml
+uv run --with pyyaml python -m coderoll run examples/file_mode/experiment.yaml
 ```
 
 Inspect outputs:
 
 ```bash
-uv run python -m coderoll rank runs/project_python_results.jsonl
-uv run python -m coderoll view runs/project_python_results.jsonl --no-open
-uv run python -m coderoll export runs/project_python_results.jsonl --format rewards --out datasets/project_python_rewards.jsonl
+uv run python -m coderoll rank runs/file_mode_results.jsonl
+uv run python -m coderoll view runs/file_mode_results.jsonl --no-open
+uv run python -m coderoll export runs/file_mode_results.jsonl --format rewards --out datasets/file_rewards.jsonl
 ```
 
-Sample map:
-
-- `project_python`: JSONL multi-file candidates over a base project.
-- `single_candidate`: one `candidate.json` with `code` written to `entry_file`.
-- `json_array`: one JSON file containing multiple code candidates.
-- `directory_candidate`: a whole candidate project directory copied over the base project.
-- `candidate_dependencies`: candidate-level dependency commands enabled and run inside Docker.
-- `multi_command_eval`: compile check plus tests, demonstrating partial scoring across commands.
+Generated tests note: if a file-mode candidate includes both generated code and generated tests,
+coderoll verifies only that the code passes those generated tests. That is useful for smoke checks,
+but it does not prove real correctness. For real evaluation, prefer trusted tests written outside
+the model, hidden verifier tests, or existing project test suites.

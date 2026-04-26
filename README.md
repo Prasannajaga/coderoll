@@ -43,23 +43,20 @@ Python package runtime dependencies stay empty. JavaScript and TypeScript toolin
 Preferred usage puts all runtime arguments in a YAML or TOML config:
 
 ```bash
-coderoll run examples/project_python/experiment.yaml
-coderoll run examples/single_candidate/experiment.yaml
-coderoll run examples/directory_candidate/experiment.yaml
+coderoll run examples/project_mode/experiment.yaml
+coderoll run examples/file_mode/experiment.yaml
 # also supported:
-coderoll run --config examples/project_python/experiment.yaml
+coderoll run --config examples/file_mode/experiment.yaml
 ```
 
-Config files contain task path, candidates path, output path, workers, sandbox settings, and viewer settings. Relative paths resolve from the config file directory.
+Config files contain a top-level mode, setup/eval commands, output path, workers, sandbox settings, and viewer settings. Relative paths resolve from the config file directory.
 
-The example suite covers the main candidate input modes:
+`coderoll` supports exactly two config modes:
 
-- `examples/project_python`: JSONL multi-file candidates over a base project
-- `examples/single_candidate`: one `candidate.json` with `code`
-- `examples/json_array`: one JSON file containing multiple code candidates
-- `examples/directory_candidate`: a whole candidate directory copied over the base project
-- `examples/candidate_dependencies`: candidate-level dependency commands inside Docker
-- `examples/multi_command_eval`: compile plus test commands with partial scoring
+- `mode: project`: evaluate one complete generated project directory.
+- `mode: file`: evaluate JSON/JSONL candidates that contain generated files.
+
+If a file-mode candidate includes both generated code and generated tests, coderoll verifies that the code passes those generated tests. This is useful as a smoke check, but it does not prove real correctness. For real evaluation, prefer trusted tests written outside the model, hidden verifier tests, or existing project test suites.
 
 TOML configs work dependency-free through stdlib `tomllib`. YAML configs require the optional extra:
 
@@ -93,26 +90,26 @@ coderoll init examples/scratch_task
 ## Rank results
 
 ```bash
-coderoll rank runs/project_python_results.jsonl --top 5
-coderoll rank runs/project_python_results.jsonl --top 5 --show-code
-coderoll rank runs/project_python_results.jsonl --passed
-coderoll rank runs/project_python_results.jsonl --failed
+coderoll rank runs/file_mode_results.jsonl --top 5
+coderoll rank runs/file_mode_results.jsonl --top 5 --show-code
+coderoll rank runs/file_mode_results.jsonl --passed
+coderoll rank runs/file_mode_results.jsonl --failed
 ```
 
 ## Inspect one candidate
 
 ```bash
-coderoll inspect runs/project_python_results.jsonl --id files_good
+coderoll inspect runs/file_mode_results.jsonl --id good
 ```
 
 ## Viewing results locally
 
 ```bash
-coderoll view runs/project_python_results.jsonl
-coderoll view runs/project_python_results.jsonl --out reports/project_python.html --no-open
+coderoll view runs/file_mode_results.jsonl
+coderoll view runs/file_mode_results.jsonl --out reports/file_mode.html --no-open
 ```
 
-This generates a standalone static HTML report (for example `runs/project_python.viewer.html`).
+This generates a standalone static HTML report (for example `runs/file_mode.viewer.html`).
 No server is required, no runtime dependencies are added, and the report can be shared as a single file.
 
 ## Exporting datasets
@@ -128,10 +125,10 @@ No training is performed. These are plain data conversions only.
    all candidates with score as reward
 
 ```bash
-coderoll export runs/project_python_results.jsonl --format sft --out datasets/sft.jsonl
-coderoll export runs/project_python_results.jsonl --format preference --out datasets/preferences.jsonl
-coderoll export runs/project_python_results.jsonl --format rewards --out datasets/rewards.jsonl
-coderoll export runs/project_python_results.jsonl --format rewards --out datasets/rewards_meta.jsonl --include-metadata
+coderoll export runs/file_mode_results.jsonl --format sft --out datasets/sft.jsonl
+coderoll export runs/file_mode_results.jsonl --format preference --out datasets/preferences.jsonl
+coderoll export runs/file_mode_results.jsonl --format rewards --out datasets/rewards.jsonl
+coderoll export runs/file_mode_results.jsonl --format rewards --out datasets/rewards_meta.jsonl --include-metadata
 ```
 
 `stdout`/`stderr` are excluded by default.
@@ -193,5 +190,5 @@ results2 = runner.run_strings(
 Each line is a complete run record:
 
 ```json
-{"run_id":"run_123","task_id":"project_python_eval","candidate_id":"files_good","score":1.0,"passed":true,"stdout":".","stderr":"","files":{"app/math_utils.py":"def add_one(x):\n    return x + 1\n"}}
+{"run_id":"run_123","task_id":"file_mode_eval","mode":"file","candidate_id":"good","score":1.0,"passed":true,"stdout":".","stderr":"","files":{"solution.py":"def add_one(x):\n    return x + 1\n"}}
 ```

@@ -1,2 +1,0 @@
-{"id":"files_good","files":{"app/math_utils.py":"def add_one(x):\n    return x + 1\n"}}
-{"id":"files_bad","files":{"app/math_utils.py":"def add_one(x):\n    return x\n"}}

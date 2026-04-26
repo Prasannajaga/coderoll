@@ -210,51 +210,70 @@ def _cmd_init_config(path: Path, force: bool = False) -> None:
 
 def _sample_yaml_config() -> str:
     return (
-        "id: add_one_eval\n\n"
-        "task:\n"
-        "  path: examples/add_one\n\n"
+        "id: file_mode_eval\n"
+        "mode: file\n\n"
         "candidates:\n"
-        "  path: examples/add_one/candidates.jsonl\n\n"
+        "  path: examples/file_mode/candidates.jsonl\n"
+        "  type: jsonl\n\n"
+        "file:\n"
+        "  code_file: solution.py\n"
+        "  test_file: test_solution.py\n\n"
+        "setup:\n"
+        "  commands: []\n\n"
+        "eval:\n"
+        "  commands:\n"
+        "    - name: tests\n"
+        "      command: python -m pytest -q --junitxml=.coderoll-results.xml\n"
+        "      result_format: junit\n\n"
         "output:\n"
-        "  path: runs/add_one.jsonl\n\n"
+        "  path: runs/file_mode_results.jsonl\n\n"
         "runner:\n"
         "  workers: 1\n\n"
         "sandbox:\n"
-        "  image: null\n"
-        "  timeout: 5\n"
-        "  memory: 256m\n"
+        "  image: coderoll-python:3.11\n"
+        "  timeout: 10\n"
+        "  memory: 512m\n"
         "  cpus: \"1\"\n"
         "  pids_limit: 128\n"
         "  network: false\n\n"
         "viewer:\n"
         "  enabled: true\n"
-        "  out: runs/add_one.viewer.html\n"
-        "  open: true\n"
+        "  out: runs/file_mode.viewer.html\n"
+        "  open: false\n"
     )
 
 
 def _sample_toml_config() -> str:
     return (
-        'id = "add_one_eval"\n\n'
-        "[task]\n"
-        'path = "examples/add_one"\n\n'
+        'id = "file_mode_eval"\n'
+        'mode = "file"\n\n'
         "[candidates]\n"
-        'path = "examples/add_one/candidates.jsonl"\n\n'
+        'path = "examples/file_mode/candidates.jsonl"\n'
+        'type = "jsonl"\n\n'
+        "[file]\n"
+        'code_file = "solution.py"\n'
+        'test_file = "test_solution.py"\n\n'
+        "[setup]\n"
+        "commands = []\n\n"
+        "[[eval.commands]]\n"
+        'name = "tests"\n'
+        'command = "python -m pytest -q --junitxml=.coderoll-results.xml"\n'
+        'result_format = "junit"\n\n'
         "[output]\n"
-        'path = "runs/add_one.jsonl"\n\n'
+        'path = "runs/file_mode_results.jsonl"\n\n'
         "[runner]\n"
         "workers = 1\n\n"
         "[sandbox]\n"
-        'image = ""\n'
-        "timeout = 5\n"
-        'memory = "256m"\n'
+        'image = "coderoll-python:3.11"\n'
+        "timeout = 10\n"
+        'memory = "512m"\n'
         'cpus = "1"\n'
         "pids_limit = 128\n"
         "network = false\n\n"
         "[viewer]\n"
         "enabled = true\n"
-        'out = "runs/add_one.viewer.html"\n'
-        "open = true\n"
+        'out = "runs/file_mode.viewer.html"\n'
+        "open = false\n"
     )
 
 
@@ -369,7 +388,7 @@ def _cmd_run_from_config(config_path: Path) -> None:
     cfg = load_config(config_path)
     results = run_from_config(cfg)
     _print_run_summary(
-        task_id=Task.from_dir(cfg.task_path).id if cfg.task_path is not None else cfg.id,
+        task_id=cfg.id,
         output_path=cfg.output_path,
         summary=results.summary(),
         errors=[record.error for record in results.records if record.error],
@@ -468,12 +487,12 @@ def _cmd_validate_config(config_path: Path) -> None:
 
     data = asdict(cfg)
     data["base_dir"] = str(cfg.base_dir)
-    if cfg.task_path is not None:
-        data["task_path"] = str(cfg.task_path)
-    data["candidates_path"] = str(cfg.candidates_path)
     data["output_path"] = str(cfg.output_path)
-    data["workspace"]["path"] = str(cfg.workspace.path) if cfg.workspace.path else None
-    data["candidates"]["path"] = str(cfg.candidates.path)
+    if cfg.project is not None:
+        data["project"]["path"] = str(cfg.project.path)
+    if cfg.candidates is not None:
+        data["candidates"]["path"] = str(cfg.candidates.path)
+        data["candidates_path"] = str(cfg.candidates.path)
     print(json.dumps(data, indent=2, default=str))
 
 

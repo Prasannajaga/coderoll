@@ -34,6 +34,55 @@ class DockerSandbox:
         self.network = network
         self.keep_workspace = keep_workspace
 
+    def run_workspace(
+        self,
+        workspace_path: Path,
+        setup_commands: list[str],
+        eval_commands: list[Any],
+        sandbox_config: Any | None = None,
+        task_id: str = "",
+        candidate_id: str = "",
+        stop_on_first_failure: bool = False,
+        image: str | None = None,
+        language: str | None = None,
+    ) -> ExecutionResult:
+        old = (self.image, self.timeout, self.memory, self.cpus, self.pids_limit, self.network)
+        if sandbox_config is not None:
+            config_image = getattr(sandbox_config, "image", None)
+            if config_image is not None:
+                self.image = config_image
+            self.timeout = getattr(sandbox_config, "timeout", self.timeout)
+            self.memory = getattr(sandbox_config, "memory", self.memory)
+            self.cpus = getattr(sandbox_config, "cpus", self.cpus)
+            self.pids_limit = getattr(sandbox_config, "pids_limit", self.pids_limit)
+            self.network = getattr(sandbox_config, "network", self.network)
+        try:
+            run_image = image or self.image
+            if not run_image:
+                raise TaskError("No Docker image configured for workspace evaluation")
+            candidate_ref = _CandidateRef(id=candidate_id)
+            return self.run_prepared_workspace(
+                config_id=task_id,
+                candidate=candidate_ref,
+                workspace=workspace_path,
+                image=run_image,
+                setup_commands=setup_commands,
+                eval_commands=eval_commands,
+                default_result_format="exit_code",
+                setup_timeout=self.timeout,
+                stop_on_first_failure=stop_on_first_failure,
+                language=language,
+            )
+        finally:
+            (
+                self.image,
+                self.timeout,
+                self.memory,
+                self.cpus,
+                self.pids_limit,
+                self.network,
+            ) = old
+
     def run(self, task: Task, candidate: Candidate) -> ExecutionResult:
         if not task.test_path.exists():
             raise TaskError(f"Task test file does not exist: {task.test_path}")
@@ -158,7 +207,6 @@ class DockerSandbox:
         workspace: Path,
         image: str,
         setup_commands: list[str],
-        dependency_commands: list[str],
         eval_commands: list[Any],
         default_result_format: str = "exit_code",
         setup_timeout: int | None = None,
@@ -215,44 +263,6 @@ class DockerSandbox:
                     error=_docker_error(image, result.stderr, result.exit_code),
                     duration_ms=int((time.time() - total_started) * 1000),
                     timed_out=False,
-                    command_results=command_results,
-                    setup_stdout="\n".join(setup_stdout),
-                    setup_stderr="\n".join(setup_stderr),
-                    setup_duration_ms=setup_duration_ms,
-                    setup_passed=False,
-                    language=language,
-                )
-
-        for index, command in enumerate(dependency_commands):
-            result = self._run_command_result(
-                workspace=workspace,
-                image=image,
-                command=command,
-                phase="setup",
-                name=f"dependency_{index + 1}",
-                result_format="exit_code",
-                timeout=setup_timeout or self.timeout,
-            )
-            command_results.append(result)
-            setup_stdout.append(_section(result.name or "dependency", result.stdout))
-            setup_stderr.append(_section(result.name or "dependency", result.stderr))
-            setup_duration_ms += result.duration_ms
-            if result.timed_out or result.exit_code != 0:
-                phase = "timeout" if result.timed_out else "setup"
-                return self._prepared_result(
-                    config_id,
-                    candidate,
-                    image,
-                    sandbox_meta,
-                    phase=phase,
-                    exit_code=-1 if result.timed_out else result.exit_code,
-                    error=(
-                        f"Dependency setup timed out after {setup_timeout or self.timeout} seconds."
-                        if result.timed_out
-                        else _docker_error(image, result.stderr, result.exit_code)
-                    ),
-                    duration_ms=int((time.time() - total_started) * 1000),
-                    timed_out=result.timed_out,
                     command_results=command_results,
                     setup_stdout="\n".join(setup_stdout),
                     setup_stderr="\n".join(setup_stderr),
@@ -389,6 +399,7 @@ class DockerSandbox:
             stderr=raw["stderr"],
             duration_ms=duration_ms,
             timed_out=raw["timed_out"],
+            result_format=result_format,
             **tests,
         )
 
@@ -681,3 +692,8 @@ def _aggregate_tests(results: list[CommandResult]) -> dict[str, int | None]:
         known = [value for value in values if value is not None]
         totals[key] = sum(known) if known else None
     return totals
+
+
+class _CandidateRef:
+    def __init__(self, id: str) -> None:
+        self.id = id

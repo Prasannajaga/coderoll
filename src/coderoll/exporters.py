@@ -26,12 +26,16 @@ def export_sft(
         row: dict[str, Any] = {
             "prompt": best.prompt,
             "task_id": best.task_id,
+            "config_id": best.config_id,
+            "mode": best.mode,
             "candidate_id": best.candidate_id,
             "candidate_mode": best.candidate_mode or ("files" if best.files else "file"),
             "score": best.score,
         }
         if best.files:
             row["files"] = best.files
+        elif best.project_path:
+            row["project_path"] = best.project_path
         else:
             row["completion"] = best.code
         if include_metadata:
@@ -83,6 +87,8 @@ def export_preferences(
         row = {
             "prompt": chosen.prompt,
             "task_id": chosen.task_id,
+            "config_id": chosen.config_id,
+            "mode": chosen.mode,
             "candidate_mode": chosen.candidate_mode or ("files" if chosen.files else "file"),
             "chosen_id": chosen.candidate_id,
             "rejected_id": rejected.candidate_id,
@@ -128,6 +134,8 @@ def export_rewards(
             "prompt": record.prompt,
             "reward": record.score,
             "task_id": record.task_id,
+            "config_id": record.config_id,
+            "mode": record.mode,
             "candidate_id": record.candidate_id,
             "candidate_mode": record.candidate_mode or ("files" if record.files else "file"),
             "passed": record.passed,
@@ -135,6 +143,8 @@ def export_rewards(
         }
         if record.files:
             row["files"] = record.files
+        elif record.project_path:
+            row["project_path"] = record.project_path
         else:
             row["completion"] = record.code
         if include_metadata:
@@ -170,5 +180,15 @@ def _write_jsonl(rows: list[dict[str, Any]], out_path: str | Path) -> None:
 
 def _candidate_payload(record: RunRecord) -> Any:
     if record.files:
-        return {"files": record.files, "candidate_mode": record.candidate_mode or "files"}
+        return {
+            "files": record.files,
+            "candidate_mode": record.candidate_mode or "file",
+            "mode": record.mode,
+        }
+    if record.project_path:
+        return {
+            "project_path": record.project_path,
+            "candidate_mode": record.candidate_mode or "project",
+            "mode": record.mode,
+        }
     return record.code

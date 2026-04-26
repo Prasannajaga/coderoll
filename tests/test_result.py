@@ -68,3 +68,42 @@ def test_run_record_command_results_serialization() -> None:
 
     assert record.files == {"solution.py": "x = 1"}
     assert payload["command_results"][0]["command"] == "python -m pytest"
+
+
+def test_run_record_project_mode_serialization() -> None:
+    record = RunRecord.from_dict(
+        {
+            "run_id": "run_1",
+            "created_at": "2026-01-01T00:00:00Z",
+            "task_id": "cfg",
+            "config_id": "cfg",
+            "mode": "project",
+            "candidate_id": "generated_project",
+            "candidate_mode": "project",
+            "project_path": "/tmp/generated_project",
+            "prompt": "",
+            "code": "",
+            "code_hash": "",
+            "test_hash": "",
+            "passed": True,
+            "score": 1.0,
+            "exit_code": 0,
+            "stdout": "",
+            "stderr": "",
+            "duration_ms": 1,
+            "timed_out": False,
+            "error": None,
+            "sandbox": {},
+            "metadata": {},
+            "setup_results": [
+                CommandResult("setup_1", "python -m pip install -r requirements.txt", "setup", 0, "", "", 1, False).to_dict()
+            ],
+        }
+    )
+
+    payload = record.to_dict()
+
+    assert payload["mode"] == "project"
+    assert payload["candidate_mode"] == "project"
+    assert payload["project_path"] == "/tmp/generated_project"
+    assert payload["setup_results"][0]["phase"] == "setup"

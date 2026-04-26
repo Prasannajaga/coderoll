@@ -1,29 +1,22 @@
-id: json_array_eval
+id: project_mode_eval
 
-workspace:
-  mode: project
-  path: project
+mode: project
 
-candidates:
-  type: json
-  path: candidates.json
-  mode: file
-  entry_file: solution.py
+project:
+  path: generated_project
 
 setup:
   commands:
     - python -m pip install -r requirements.txt
-  allow_candidate_dependencies: false
 
 eval:
   commands:
     - name: tests
       command: python -m pytest -q --junitxml=.coderoll-results.xml
       result_format: junit
-  result_format: junit
 
 output:
-  path: ../../runs/json_array_results.jsonl
+  path: ../../runs/project_mode_results.jsonl
 
 runner:
   workers: 1
@@ -38,5 +31,5 @@ sandbox:
 
 viewer:
   enabled: true
-  out: ../../runs/json_array.viewer.html
+  out: ../../runs/project_mode.viewer.html
   open: false

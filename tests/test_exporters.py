@@ -116,6 +116,22 @@ def test_export_rewards_exports_all_records(tmp_path: Path) -> None:
     assert len(payload) == 3
 
 
+def test_export_rewards_includes_mode_and_project_path(tmp_path: Path) -> None:
+    out = tmp_path / "rewards.jsonl"
+    record = _record("cfg", "generated_project", passed=True, score=1.0, duration_ms=5)
+    record.mode = "project"
+    record.candidate_mode = "project"
+    record.project_path = "/tmp/generated_project"
+    record.code = ""
+
+    rows = export_rewards([record], out)
+
+    assert rows == 1
+    payload = _read_jsonl(out)
+    assert payload[0]["mode"] == "project"
+    assert payload[0]["project_path"] == "/tmp/generated_project"
+
+
 def test_include_metadata_adds_metadata(tmp_path: Path) -> None:
     out = tmp_path / "rewards.jsonl"
     records = [_record("t1", "a", passed=True, score=1.0, duration_ms=5)]

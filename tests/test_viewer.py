@@ -46,11 +46,25 @@ def test_render_html_handles_files_candidate() -> None:
     record = _record()
     record.code = ""
     record.files = {"solution.py": "x = 1"}
-    record.candidate_mode = "files"
+    record.mode = "file"
+    record.candidate_mode = "file"
     html = render_html([record], title="Files")
 
+    assert "mode-filter" in html
     assert "candidate-mode-filter" in html
     assert "solution.py" in html
+
+
+def test_render_html_handles_project_record() -> None:
+    record = _record("generated_project")
+    record.mode = "project"
+    record.candidate_mode = "project"
+    record.project_path = "/tmp/generated_project"
+
+    html = render_html([record], title="Project")
+
+    assert "project_path" in html
+    assert "/tmp/generated_project" in html
 
 
 def test_write_viewer_writes_file(tmp_path: Path) -> None:

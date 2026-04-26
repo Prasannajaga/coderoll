@@ -10,159 +10,53 @@ from coderoll.config import load_config, load_config_dict
 from coderoll.errors import CoderollError
 
 
-def _setup_task_files(root: Path) -> None:
-    task_dir = root / "examples" / "add_one"
-    task_dir.mkdir(parents=True)
-    (task_dir / "prompt.txt").write_text("prompt\n", encoding="utf-8")
-    (task_dir / "test_solution.py").write_text(
-        "def test_ok():\n    assert True\n", encoding="utf-8"
-    )
-    candidates = task_dir / "candidates.jsonl"
-    candidates.write_text('{"code": "def solution(x): return x"}\n', encoding="utf-8")
-
-
-def test_load_toml_config(tmp_path: Path) -> None:
-    _setup_task_files(tmp_path)
-    cfg_path = tmp_path / "coderoll.toml"
-    cfg_path.write_text(
-        'id = "add_one_eval"\n\n'
-        "[task]\n"
-        'path = "examples/add_one"\n\n'
-        "[candidates]\n"
-        'path = "examples/add_one/candidates.jsonl"\n\n'
-        "[output]\n"
-        'path = "runs/add_one.jsonl"\n\n'
-        "[runner]\n"
-        "workers = 2\n\n"
-        "[viewer]\n"
-        "enabled = true\n"
-        "open = false\n",
-        encoding="utf-8",
-    )
-
-    cfg = load_config(cfg_path)
-
-    assert cfg.id == "add_one_eval"
-    assert cfg.task_path == (tmp_path / "examples" / "add_one").resolve()
-    assert cfg.candidates_path == (tmp_path / "examples" / "add_one" / "candidates.jsonl").resolve()
-    assert cfg.output_path == (tmp_path / "runs" / "add_one.jsonl").resolve()
-    assert cfg.runner.workers == 2
-    assert cfg.viewer.enabled is True
-    assert cfg.viewer.open is False
-
-
-def test_load_config_missing_required_field(tmp_path: Path) -> None:
-    cfg_path = tmp_path / "coderoll.toml"
-    cfg_path.write_text(
-        "[task]\n"
-        'path = "examples/add_one"\n\n'
-        "[candidates]\n"
-        'path = "examples/add_one/candidates.jsonl"\n\n'
-        "[output]\n"
-        'path = "runs/add_one.jsonl"\n',
-        encoding="utf-8",
-    )
-
-    with pytest.raises(CoderollError, match="id is required"):
-        load_config(cfg_path)
-
-
-def test_load_config_relative_path_resolution(tmp_path: Path) -> None:
-    _setup_task_files(tmp_path)
-    cfg_dir = tmp_path / "configs"
-    cfg_dir.mkdir()
-    cfg_path = cfg_dir / "coderoll.toml"
-    cfg_path.write_text(
-        'id = "add_one_eval"\n\n'
-        "[task]\n"
-        'path = "../examples/add_one"\n\n'
-        "[candidates]\n"
-        'path = "../examples/add_one/candidates.jsonl"\n\n'
-        "[output]\n"
-        'path = "../runs/add_one.jsonl"\n',
-        encoding="utf-8",
-    )
-
-    cfg = load_config(cfg_path)
-
-    assert cfg.task_path == (tmp_path / "examples" / "add_one").resolve()
-    assert cfg.output_path == (tmp_path / "runs" / "add_one.jsonl").resolve()
-
-
-def test_load_config_invalid_workers(tmp_path: Path) -> None:
-    _setup_task_files(tmp_path)
-    cfg_path = tmp_path / "coderoll.toml"
-    cfg_path.write_text(
-        'id = "add_one_eval"\n\n'
-        "[task]\n"
-        'path = "examples/add_one"\n\n'
-        "[candidates]\n"
-        'path = "examples/add_one/candidates.jsonl"\n\n'
-        "[output]\n"
-        'path = "runs/add_one.jsonl"\n\n'
-        "[runner]\n"
-        "workers = 0\n",
-        encoding="utf-8",
-    )
-
-    with pytest.raises(CoderollError, match="runner.workers must be an integer >= 1"):
-        load_config(cfg_path)
-
-
-def test_load_new_workspace_config_relative_paths(tmp_path: Path) -> None:
-    project = tmp_path / "project"
+def test_project_mode_config_loads(tmp_path: Path) -> None:
+    project = tmp_path / "generated_project"
     project.mkdir()
-    candidates = tmp_path / "candidates.jsonl"
-    candidates.write_text('{"files":{"solution.py":"x = 1"}}\n', encoding="utf-8")
     cfg_path = tmp_path / "experiment.toml"
     cfg_path.write_text(
-        'id = "project_eval"\n\n'
-        "[workspace]\n"
-        'mode = "project"\n'
-        'path = "project"\n\n'
-        "[candidates]\n"
-        'type = "jsonl"\n'
-        'path = "candidates.jsonl"\n'
-        'mode = "files"\n\n'
+        'id = "project_eval"\n'
+        'mode = "project"\n\n'
+        "[project]\n"
+        'path = "generated_project"\n\n'
         "[[eval.commands]]\n"
         'name = "tests"\n'
         'command = "python -m pytest"\n'
         'result_format = "junit"\n\n'
         "[output]\n"
-        'path = "runs/results.jsonl"\n',
+        'path = "runs/results.jsonl"\n\n'
+        "[runner]\n"
+        "workers = 2\n",
         encoding="utf-8",
     )
 
     cfg = load_config(cfg_path)
 
-    assert cfg.workspace.mode == "project"
-    assert cfg.workspace.path == project.resolve()
-    assert cfg.candidates.type == "jsonl"
-    assert cfg.candidates.mode == "files"
-    assert cfg.eval.commands[0].name == "tests"
-    assert cfg.eval.commands[0].result_format == "junit"
+    assert cfg.id == "project_eval"
+    assert cfg.mode == "project"
+    assert cfg.project is not None
+    assert cfg.project.path == project.resolve()
+    assert cfg.candidates is None
     assert cfg.output_path == (tmp_path / "runs" / "results.jsonl").resolve()
+    assert cfg.runner.workers == 2
+    assert cfg.eval.commands[0].result_format == "junit"
 
 
-def test_load_new_config_setup_and_simple_eval_commands(tmp_path: Path) -> None:
-    project = tmp_path / "project"
-    project.mkdir()
-    candidates = tmp_path / "candidate.json"
-    candidates.write_text('{"code":"x = 1"}', encoding="utf-8")
+def test_file_mode_config_loads(tmp_path: Path) -> None:
+    candidates = tmp_path / "candidates.jsonl"
+    candidates.write_text('{"files":{"solution.py":"x = 1"}}\n', encoding="utf-8")
     cfg_path = tmp_path / "experiment.toml"
     cfg_path.write_text(
-        'id = "single_eval"\n\n'
-        "[workspace]\n"
-        'mode = "project"\n'
-        'path = "project"\n\n'
+        'id = "file_eval"\n'
+        'mode = "file"\n\n'
         "[candidates]\n"
-        'type = "json"\n'
-        'path = "candidate.json"\n'
-        'mode = "file"\n'
-        'entry_file = "solution.py"\n\n'
+        'path = "candidates.jsonl"\n'
+        'type = "jsonl"\n\n'
+        "[file]\n"
+        'code_file = "src/solution.py"\n'
+        'test_file = "tests/test_solution.py"\n\n'
         "[setup]\n"
-        'commands = ["python -m pip install -r requirements.txt"]\n'
-        "allow_candidate_dependencies = true\n\n"
+        'commands = ["python -m pip install -r requirements.txt"]\n\n'
         "[eval]\n"
         'commands = ["python -m pytest"]\n'
         'result_format = "exit_code"\n\n'
@@ -173,10 +67,123 @@ def test_load_new_config_setup_and_simple_eval_commands(tmp_path: Path) -> None:
 
     cfg = load_config(cfg_path)
 
+    assert cfg.mode == "file"
+    assert cfg.project is None
+    assert cfg.candidates is not None
+    assert cfg.candidates.path == candidates.resolve()
+    assert cfg.candidates.type == "jsonl"
+    assert cfg.file.code_file == "src/solution.py"
+    assert cfg.file.test_file == "tests/test_solution.py"
     assert cfg.setup.commands == ["python -m pip install -r requirements.txt"]
-    assert cfg.setup.allow_candidate_dependencies is True
     assert cfg.eval.commands[0].command == "python -m pytest"
-    assert cfg.candidates.entry_file == "solution.py"
+
+
+def test_mode_is_required(tmp_path: Path) -> None:
+    cfg_path = tmp_path / "experiment.toml"
+    cfg_path.write_text(
+        'id = "missing_mode"\n\n'
+        "[output]\n"
+        'path = "runs/results.jsonl"\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CoderollError, match="mode is required"):
+        load_config(cfg_path)
+
+
+def test_invalid_mode_rejected(tmp_path: Path) -> None:
+    cfg_path = tmp_path / "experiment.toml"
+    cfg_path.write_text(
+        'id = "bad_mode"\n'
+        'mode = "overlay"\n\n'
+        "[output]\n"
+        'path = "runs/results.jsonl"\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CoderollError, match="mode must be one of"):
+        load_config(cfg_path)
+
+
+def test_project_path_required_for_project_mode(tmp_path: Path) -> None:
+    cfg_path = tmp_path / "experiment.toml"
+    cfg_path.write_text(
+        'id = "project_eval"\n'
+        'mode = "project"\n\n'
+        "[project]\n\n"
+        "[[eval.commands]]\n"
+        'command = "python -m pytest"\n\n'
+        "[output]\n"
+        'path = "runs/results.jsonl"\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CoderollError, match="project.path is required"):
+        load_config(cfg_path)
+
+
+def test_candidates_path_required_for_file_mode(tmp_path: Path) -> None:
+    cfg_path = tmp_path / "experiment.toml"
+    cfg_path.write_text(
+        'id = "file_eval"\n'
+        'mode = "file"\n\n'
+        "[candidates]\n\n"
+        "[[eval.commands]]\n"
+        'command = "python -m pytest"\n\n'
+        "[output]\n"
+        'path = "runs/results.jsonl"\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CoderollError, match="candidates.path is required"):
+        load_config(cfg_path)
+
+
+def test_relative_paths_resolve_from_config_location(tmp_path: Path) -> None:
+    project = tmp_path / "generated_project"
+    project.mkdir()
+    cfg_dir = tmp_path / "configs"
+    cfg_dir.mkdir()
+    cfg_path = cfg_dir / "experiment.toml"
+    cfg_path.write_text(
+        'id = "project_eval"\n'
+        'mode = "project"\n\n'
+        "[project]\n"
+        'path = "../generated_project"\n\n'
+        "[[eval.commands]]\n"
+        'command = "python -m pytest"\n\n'
+        "[output]\n"
+        'path = "../runs/results.jsonl"\n',
+        encoding="utf-8",
+    )
+
+    cfg = load_config(cfg_path)
+
+    assert cfg.project is not None
+    assert cfg.project.path == project.resolve()
+    assert cfg.output_path == (tmp_path / "runs" / "results.jsonl").resolve()
+
+
+def test_load_config_invalid_workers(tmp_path: Path) -> None:
+    candidates = tmp_path / "candidates.jsonl"
+    candidates.write_text('{"files":{"solution.py":"x = 1"}}\n', encoding="utf-8")
+    cfg_path = tmp_path / "experiment.toml"
+    cfg_path.write_text(
+        'id = "file_eval"\n'
+        'mode = "file"\n\n'
+        "[candidates]\n"
+        'path = "candidates.jsonl"\n\n'
+        "[[eval.commands]]\n"
+        'command = "python -m pytest"\n\n'
+        "[output]\n"
+        'path = "runs/results.jsonl"\n\n'
+        "[runner]\n"
+        "workers = 0\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CoderollError, match="runner.workers must be an integer >= 1"):
+        load_config(cfg_path)
 
 
 def test_init_config_toml_generation(tmp_path: Path) -> None:
@@ -186,8 +193,8 @@ def test_init_config_toml_generation(tmp_path: Path) -> None:
     assert exit_code == 0
     assert cfg_path.exists()
     text = cfg_path.read_text(encoding="utf-8")
-    assert 'id = "add_one_eval"' in text
-    assert "[task]" in text
+    assert 'id = "file_mode_eval"' in text
+    assert 'mode = "file"' in text
 
 
 def test_init_config_yaml_generation(tmp_path: Path) -> None:
@@ -197,8 +204,8 @@ def test_init_config_yaml_generation(tmp_path: Path) -> None:
     assert exit_code == 0
     assert cfg_path.exists()
     text = cfg_path.read_text(encoding="utf-8")
-    assert "id: add_one_eval" in text
-    assert "task:" in text
+    assert "id: file_mode_eval" in text
+    assert "mode: file" in text
 
 
 def test_yaml_missing_dependency_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
