@@ -14,7 +14,7 @@ def test_get_runtime_returns_spec() -> None:
     runtime = get_runtime("typescript")
 
     assert runtime.default_image == "coderoll-node-ts:20"
-    assert runtime.default_build_command == "npx tsc --noEmit"
+    assert runtime.default_build_command == "tsc --noEmit"
     assert runtime.result_format == "tap"
 
 

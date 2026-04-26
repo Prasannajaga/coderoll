@@ -78,6 +78,56 @@ def test_file_mode_config_loads(tmp_path: Path) -> None:
     assert cfg.eval.commands[0].command == "python -m pytest"
 
 
+def test_language_preset_supplies_file_sandbox_and_eval_defaults(tmp_path: Path) -> None:
+    candidates = tmp_path / "candidates.jsonl"
+    candidates.write_text('{"code":"module.exports = {}"}\n', encoding="utf-8")
+    cfg_path = tmp_path / "experiment.toml"
+    cfg_path.write_text(
+        'id = "js_eval"\n'
+        'mode = "file"\n'
+        'language = "javascript"\n\n'
+        "[candidates]\n"
+        'path = "candidates.jsonl"\n\n'
+        "[output]\n"
+        'path = "runs/results.jsonl"\n',
+        encoding="utf-8",
+    )
+
+    cfg = load_config(cfg_path)
+
+    assert cfg.language == "javascript"
+    assert cfg.file.code_file == "solution.js"
+    assert cfg.file.test_file == "test_solution.test.js"
+    assert cfg.sandbox.image == "coderoll-node:20"
+    assert len(cfg.eval.commands) == 1
+    assert cfg.eval.commands[0].command == "node --test --test-reporter=tap"
+    assert cfg.eval.commands[0].result_format == "tap"
+
+
+def test_typescript_language_preset_includes_typecheck_and_tests(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    cfg_path = tmp_path / "experiment.toml"
+    cfg_path.write_text(
+        'id = "ts_eval"\n'
+        'mode = "project"\n'
+        'language = "typescript"\n\n'
+        "[project]\n"
+        'path = "project"\n\n'
+        "[output]\n"
+        'path = "runs/results.jsonl"\n',
+        encoding="utf-8",
+    )
+
+    cfg = load_config(cfg_path)
+
+    assert cfg.sandbox.image == "coderoll-node-ts:20"
+    assert [(cmd.name, cmd.command, cmd.result_format) for cmd in cfg.eval.commands] == [
+        ("typecheck", "tsc --noEmit", "exit_code"),
+        ("tests", "npm test", "tap"),
+    ]
+
+
 def test_mode_is_required(tmp_path: Path) -> None:
     cfg_path = tmp_path / "experiment.toml"
     cfg_path.write_text(

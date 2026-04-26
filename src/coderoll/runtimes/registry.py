@@ -24,7 +24,7 @@ _RUNTIMES: dict[str, RuntimeSpec] = {
         default_image="coderoll-node-ts:20",
         default_entry_file="solution.ts",
         default_test_file="test_solution.test.ts",
-        default_build_command="npx tsc --noEmit",
+        default_build_command="tsc --noEmit",
         default_test_command="npm test",
         result_format="tap",
     ),

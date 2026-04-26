@@ -1,14 +1,8 @@
 # coderoll
 
-`coderoll` is a lightweight, dependency-free, local-first Python library for code rollout collection and evaluation.
+`coderoll` is lightweigh, local first python library for code rollout in sanbox for AI agents. 
 
-It takes a coding task and one or more candidate solutions, runs each candidate inside a local Docker sandbox, executes tests, scores outcomes, stores full traces as JSONL, and ranks candidates.
-
-## What coderoll is
-
-- A dependency-free local code rollout/eval library
-- Focused on clean rollout data collection for future RL/SFT workflows
-- Simple CLI + Python API
+It takes full repo of project in the local folder and create docker sanbox which execute tests, scores outcomes and stores full traces as JSONL for your RL env datasets   
 
 ## CLI usage
 
@@ -45,6 +39,8 @@ Preferred usage puts all runtime arguments in a YAML or TOML config:
 ```bash
 coderoll run examples/project_mode/experiment.yaml
 coderoll run examples/file_mode/experiment.yaml
+coderoll run examples/js_file_mode/experiment.yaml
+coderoll run examples/ts_project_mode/experiment.yaml
 # also supported:
 coderoll run --config examples/file_mode/experiment.yaml
 ```
@@ -55,6 +51,21 @@ Config files contain a top-level mode, setup/eval commands, output path, workers
 
 - `mode: project`: evaluate one complete generated project directory.
 - `mode: file`: evaluate JSON/JSONL candidates that contain generated files.
+
+Configs may set `language` to use runtime presets:
+
+- `language: python`: `coderoll-python:3.11`, `solution.py`, `test_solution.py`, pytest/JUnit.
+- `language: javascript`: `coderoll-node:20`, `solution.js`, `test_solution.test.js`, `node --test`/TAP.
+- `language: typescript`: `coderoll-node-ts:20`, `solution.ts`, `test_solution.test.ts`, `tsc --noEmit` plus `npm test`/TAP.
+
+Any explicit `file`, `sandbox`, or `eval` settings override the preset defaults.
+
+The example suite includes Python, JavaScript, and TypeScript configs:
+
+- `examples/project_mode`: Python project mode.
+- `examples/file_mode`: Python file mode.
+- `examples/js_file_mode`: JavaScript file mode using `node --test --test-reporter=tap`.
+- `examples/ts_project_mode`: TypeScript project mode using `npm run typecheck` and `npm test`.
 
 If a file-mode candidate includes both generated code and generated tests, coderoll verifies that the code passes those generated tests. This is useful as a smoke check, but it does not prove real correctness. For real evaluation, prefer trusted tests written outside the model, hidden verifier tests, or existing project test suites.
 

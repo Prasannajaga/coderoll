@@ -1,7 +1,6 @@
 id: project_mode_eval
-
 mode: project
-
+language: python
 project:
   path: generated_project
 

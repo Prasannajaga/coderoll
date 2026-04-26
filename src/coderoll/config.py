@@ -4,6 +4,7 @@ from typing import Any
 import tomllib
 
 from .errors import CoderollError
+from .runtimes import get_runtime
 
 
 DEFAULT_EXCLUDE = [
@@ -92,6 +93,7 @@ class ViewerConfig:
 class RunConfig:
     id: str
     mode: str
+    language: str | None
     project: ProjectConfig | None
     file: FileConfig
     candidates: CandidatesConfig | None
@@ -159,15 +161,17 @@ def normalize_config(data: dict[str, Any], base_dir: Path) -> RunConfig:
     mode = _require_str(data, "mode").strip().lower()
     if mode not in {"project", "file"}:
         raise CoderollError("mode must be one of: project, file")
+    language = _optional_top_level_str(data, "language")
+    runtime = get_runtime(language) if language is not None else None
 
     project = _normalize_project(data, base_dir) if mode == "project" else None
     candidates = _normalize_candidates(data, base_dir) if mode == "file" else None
-    file_config = _normalize_file(data)
+    file_config = _normalize_file(data, runtime)
     setup = _normalize_setup(data)
-    eval_config = _normalize_eval(data)
+    eval_config = _normalize_eval(data, runtime)
     output = OutputConfig(path=_resolve_required_path(data, "output", base_dir))
     runner = _normalize_runner(data)
-    sandbox = _normalize_sandbox(data)
+    sandbox = _normalize_sandbox(data, runtime)
     viewer = _normalize_viewer(data, base_dir)
 
     if mode == "project":
@@ -188,6 +192,7 @@ def normalize_config(data: dict[str, Any], base_dir: Path) -> RunConfig:
     return RunConfig(
         id=run_id,
         mode=mode,
+        language=language,
         project=project,
         file=file_config,
         candidates=candidates,
@@ -215,11 +220,13 @@ def _normalize_project(data: dict[str, Any], base_dir: Path) -> ProjectConfig:
     )
 
 
-def _normalize_file(data: dict[str, Any]) -> FileConfig:
+def _normalize_file(data: dict[str, Any], runtime: Any | None = None) -> FileConfig:
     section = _optional_section(data, "file")
+    default_code_file = runtime.default_entry_file if runtime is not None else "solution.py"
+    default_test_file = runtime.default_test_file if runtime is not None else "test_solution.py"
     return FileConfig(
-        code_file=_optional_str(section, "code_file", "solution.py"),
-        test_file=_optional_str(section, "test_file", "test_solution.py"),
+        code_file=_optional_str(section, "code_file", default_code_file),
+        test_file=_optional_str(section, "test_file", default_test_file),
     )
 
 
@@ -242,11 +249,13 @@ def _normalize_setup(data: dict[str, Any]) -> SetupConfig:
     return SetupConfig(commands=_optional_str_list(section, "commands", [], "setup.commands"))
 
 
-def _normalize_eval(data: dict[str, Any]) -> EvalConfig:
-    section = _required_section(data, "eval")
+def _normalize_eval(data: dict[str, Any], runtime: Any | None = None) -> EvalConfig:
+    section = _optional_section(data, "eval")
     raw_commands = section.get("commands")
     if raw_commands is None:
-        raise CoderollError("eval.commands is required")
+        if runtime is None:
+            raise CoderollError("eval.commands is required")
+        raw_commands = _runtime_eval_commands(runtime)
     if not isinstance(raw_commands, list) or not raw_commands:
         raise CoderollError("eval.commands must be a non-empty list")
 
@@ -304,10 +313,11 @@ def _normalize_runner(data: dict[str, Any]) -> RunnerConfig:
     return RunnerConfig(workers=workers)
 
 
-def _normalize_sandbox(data: dict[str, Any]) -> SandboxConfig:
+def _normalize_sandbox(data: dict[str, Any], runtime: Any | None = None) -> SandboxConfig:
     section = _optional_section(data, "sandbox")
+    default_image = runtime.default_image if runtime is not None else None
     return SandboxConfig(
-        image=_optional_str_or_none(section, "image"),
+        image=_optional_str_or_none(section, "image") or default_image,
         timeout=_optional_positive_int(section, "timeout", 5, "sandbox.timeout"),
         memory=_optional_str(section, "memory", "256m"),
         cpus=_optional_str(section, "cpus", "1"),
@@ -347,6 +357,35 @@ def _require_str(data: dict[str, Any], key: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise CoderollError(f"{key} is required and must be a non-empty string")
     return value
+
+
+def _optional_top_level_str(data: dict[str, Any], key: str) -> str | None:
+    value = data.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise CoderollError(f"{key} must be a non-empty string when set")
+    return value.strip().lower()
+
+
+def _runtime_eval_commands(runtime: Any) -> list[dict[str, str]]:
+    commands: list[dict[str, str]] = []
+    if runtime.default_build_command:
+        commands.append(
+            {
+                "name": "typecheck",
+                "command": runtime.default_build_command,
+                "result_format": "exit_code",
+            }
+        )
+    commands.append(
+        {
+            "name": "tests",
+            "command": runtime.default_test_command,
+            "result_format": runtime.result_format,
+        }
+    )
+    return commands
 
 
 def _required_section(data: dict[str, Any], key: str) -> dict[str, Any]:

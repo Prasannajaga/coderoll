@@ -74,6 +74,6 @@ def test_task_from_dir_ts_runtime(tmp_path: Path) -> None:
     assert task.language == "typescript"
     assert task.image == "coderoll-node-ts:20"
     assert task.entry_file == "solution.ts"
-    assert task.build_command == "npx tsc --noEmit"
+    assert task.build_command == "tsc --noEmit"
     assert task.test_command == "npm test"
     assert task.result_format == "tap"
