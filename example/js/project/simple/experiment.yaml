@@ -1,0 +1,34 @@
+id: js_project_simple
+mode: project
+language: javascript
+
+project:
+  path: generated_project
+
+setup:
+  commands: []
+
+eval:
+  commands:
+    - name: tests
+      command: node --test --test-reporter=tap
+      result_format: tap
+
+output:
+  path: runs/js_project_simple_results.jsonl
+
+runner:
+  workers: 1
+
+sandbox:
+  image: coderoll-node:20
+  timeout: 15
+  memory: 512m
+  cpus: "1"
+  pids_limit: 128
+  network: false
+
+viewer:
+  enabled: true
+  out: runs/js_project_simple.viewer.html
+  open: false

@@ -1,0 +1,35 @@
+id: python_nested_file_mode_100
+mode: file
+language: python
+
+candidates:
+  path: candidates_100.jsonl
+  type: jsonl
+
+setup:
+  commands: []
+
+eval:
+  commands:
+    - name: tests
+      command: python -m pytest -q tests/unit/test_addition.py --junitxml=.coderoll-results.xml
+      result_format: junit
+
+output:
+  path: runs/python_nested_file_mode_100_results.jsonl
+
+runner:
+  workers: 6
+
+sandbox:
+  image: coderoll-python:3.11
+  timeout: 20
+  memory: 512m
+  cpus: "1"
+  pids_limit: 128
+  network: false
+
+viewer:
+  enabled: true
+  out: runs/python_nested_file_mode_100.viewer.html
+  open: false

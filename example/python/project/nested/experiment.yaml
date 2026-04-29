@@ -1,0 +1,34 @@
+id: python_project_nested
+mode: project
+language: python
+
+project:
+  path: generated_project
+
+setup:
+  commands: []
+
+eval:
+  commands:
+    - name: tests
+      command: python -m pytest -q --junitxml=.coderoll-results.xml
+      result_format: junit
+
+output:
+  path: runs/python_project_nested_results.jsonl
+
+runner:
+  workers: 1
+
+sandbox:
+  image: coderoll-python:3.11
+  timeout: 15
+  memory: 512m
+  cpus: "1"
+  pids_limit: 128
+  network: false
+
+viewer:
+  enabled: true
+  out: runs/python_project_nested.viewer.html
+  open: false
