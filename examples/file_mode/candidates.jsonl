@@ -1,2 +1,0 @@
-{"id":"good","files":{"solution.py":"def add_one(x):\n    return x + 1\n","test_solution.py":"from solution import add_one\n\n\ndef test_add_one():\n    assert add_one(1) == 2\n    assert add_one(10) == 11\n"}}
-{"id":"bad","files":{"solution.py":"def add_one(x):\n    return x\n","test_solution.py":"from solution import add_one\n\n\ndef test_add_one():\n    assert add_one(1) == 2\n    assert add_one(10) == 11\n"}}
