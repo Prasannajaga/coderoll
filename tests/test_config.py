@@ -104,6 +104,55 @@ def test_language_preset_supplies_file_sandbox_and_eval_defaults(tmp_path: Path)
     assert cfg.eval.commands[0].result_format == "tap"
 
 
+@pytest.mark.parametrize(
+    ("language", "code_file", "test_file", "image", "command", "result_format"),
+    [
+        ("go", "solution.go", "solution_test.go", "coderoll-go:1.26", "GO111MODULE=off go test ./...", "exit_code"),
+        ("java", "Solution.java", "TestSolution.java", "coderoll-java:21", "javac *.java && java -ea TestSolution", "exit_code"),
+        (
+            "rust",
+            "solution.rs",
+            "test_solution.rs",
+            "coderoll-rust:1",
+            "rustc --test test_solution.rs -o .coderoll-tests && ./.coderoll-tests",
+            "exit_code",
+        ),
+    ],
+)
+def test_language_presets_for_go_java_rust(
+    tmp_path: Path,
+    language: str,
+    code_file: str,
+    test_file: str,
+    image: str,
+    command: str,
+    result_format: str,
+) -> None:
+    candidates = tmp_path / "candidates.jsonl"
+    candidates.write_text('{"code":"placeholder"}\n', encoding="utf-8")
+    cfg_path = tmp_path / "experiment.toml"
+    cfg_path.write_text(
+        f'id = "{language}_eval"\n'
+        'mode = "file"\n'
+        f'language = "{language}"\n\n'
+        "[candidates]\n"
+        'path = "candidates.jsonl"\n\n'
+        "[output]\n"
+        'path = "runs/results.jsonl"\n',
+        encoding="utf-8",
+    )
+
+    cfg = load_config(cfg_path)
+
+    assert cfg.language == language
+    assert cfg.file.code_file == code_file
+    assert cfg.file.test_file == test_file
+    assert cfg.sandbox.image == image
+    assert len(cfg.eval.commands) == 1
+    assert cfg.eval.commands[0].command == command
+    assert cfg.eval.commands[0].result_format == result_format
+
+
 def test_typescript_language_preset_includes_typecheck_and_tests(tmp_path: Path) -> None:
     project = tmp_path / "project"
     project.mkdir()
@@ -462,3 +511,57 @@ def test_run_rejects_positional_config_with_config_flag(
     exit_code = main(["run", str(cfg_path), "--config", str(other_path)])
 
     assert exit_code == 1
+
+
+def test_run_single_candidate_uses_task_entry_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    task_dir = tmp_path / "task"
+    task_dir.mkdir()
+    candidate_path = tmp_path / "candidate.go"
+    candidate_path.write_text("package main\n", encoding="utf-8")
+    out_path = tmp_path / "runs" / "results.jsonl"
+
+    class FakeTask:
+        id = "go_task"
+        entry_file = "solution.go"
+        timeout = 5
+
+    class FakeResults:
+        records: list[object] = []
+
+        def summary(self) -> dict[str, object]:
+            return {"total": 0, "passed": 0, "failed": 0, "best_score": 0.0}
+
+    class FakeRunner:
+        def __init__(self, sandbox, evaluator, store) -> None:  # noqa: ANN001
+            self.sandbox = sandbox
+            self.evaluator = evaluator
+            self.store = store
+
+        def run(self, task, candidates, workers):  # noqa: ANN001
+            return FakeResults()
+
+    captured: dict[str, object] = {}
+
+    def fake_from_file(path: Path, entry_file: str | None = None):  # noqa: ANN202
+        captured["path"] = path
+        captured["entry_file"] = entry_file
+        return object()
+
+    monkeypatch.setattr(cli.Task, "from_dir", lambda path: FakeTask())
+    monkeypatch.setattr(cli.Candidate, "from_file", fake_from_file)
+    monkeypatch.setattr(cli, "Runner", FakeRunner)
+
+    exit_code = main(
+        [
+            "run",
+            str(task_dir),
+            "--candidate",
+            str(candidate_path),
+            "--out",
+            str(out_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["path"] == candidate_path
+    assert captured["entry_file"] == "solution.go"

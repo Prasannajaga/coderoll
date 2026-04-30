@@ -77,3 +77,57 @@ def test_task_from_dir_ts_runtime(tmp_path: Path) -> None:
     assert task.build_command == "tsc --noEmit"
     assert task.test_command == "npm test"
     assert task.result_format == "tap"
+
+
+def test_task_from_dir_go_runtime(tmp_path: Path) -> None:
+    task_dir = tmp_path / "go_task"
+    task_dir.mkdir()
+    (task_dir / "prompt.txt").write_text("prompt\n", encoding="utf-8")
+    (task_dir / "solution_test.go").write_text("package main\n", encoding="utf-8")
+    (task_dir / "task.toml").write_text('language = "go"\n', encoding="utf-8")
+
+    task = Task.from_dir(task_dir)
+
+    assert task.language == "go"
+    assert task.image == "coderoll-go:1.26"
+    assert task.entry_file == "solution.go"
+    assert task.test_file == "solution_test.go"
+    assert task.build_command is None
+    assert task.test_command == "GO111MODULE=off go test ./..."
+    assert task.result_format == "exit_code"
+
+
+def test_task_from_dir_java_runtime(tmp_path: Path) -> None:
+    task_dir = tmp_path / "java_task"
+    task_dir.mkdir()
+    (task_dir / "prompt.txt").write_text("prompt\n", encoding="utf-8")
+    (task_dir / "TestSolution.java").write_text("public class TestSolution {}\n", encoding="utf-8")
+    (task_dir / "task.toml").write_text('language = "java"\n', encoding="utf-8")
+
+    task = Task.from_dir(task_dir)
+
+    assert task.language == "java"
+    assert task.image == "coderoll-java:21"
+    assert task.entry_file == "Solution.java"
+    assert task.test_file == "TestSolution.java"
+    assert task.build_command is None
+    assert task.test_command == "javac *.java && java -ea TestSolution"
+    assert task.result_format == "exit_code"
+
+
+def test_task_from_dir_rust_runtime(tmp_path: Path) -> None:
+    task_dir = tmp_path / "rust_task"
+    task_dir.mkdir()
+    (task_dir / "prompt.txt").write_text("prompt\n", encoding="utf-8")
+    (task_dir / "test_solution.rs").write_text("#[test]\nfn test_smoke() {}\n", encoding="utf-8")
+    (task_dir / "task.toml").write_text('language = "rust"\n', encoding="utf-8")
+
+    task = Task.from_dir(task_dir)
+
+    assert task.language == "rust"
+    assert task.image == "coderoll-rust:1"
+    assert task.entry_file == "solution.rs"
+    assert task.test_file == "test_solution.rs"
+    assert task.build_command is None
+    assert task.test_command == "rustc --test test_solution.rs -o .coderoll-tests && ./.coderoll-tests"
+    assert task.result_format == "exit_code"

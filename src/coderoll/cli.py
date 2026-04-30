@@ -13,7 +13,7 @@ from .exporters import export_preferences, export_rewards, export_sft
 from .rankers.simple import explain_rank, rank_records
 from .run_logging import EventLogger, RunStage, StageReporter
 from .runner import Runner, run_from_config
-from .runtimes import get_runtime
+from .runtimes import get_runtime, list_runtimes
 from .sandboxes.docker_cli import DockerSandbox
 from .stores.jsonl import JsonlStore, write_records
 from .task import Task
@@ -84,6 +84,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _build_parser() -> ArgumentParser:
     parser = ArgumentParser(prog="coderoll", description="Local code rollout and evaluation")
     subparsers = parser.add_subparsers(dest="command", required=True)
+    runtime_options = ", ".join(runtime.language for runtime in list_runtimes())
 
     init_parser = subparsers.add_parser("init", help="Create a starter task directory")
     init_parser.add_argument("task_dir", help="Task directory to create")
@@ -104,14 +105,14 @@ def _build_parser() -> ArgumentParser:
     build_parser.add_argument(
         "--runtime",
         default="python",
-        help="Runtime image to build: python, javascript, or typescript",
+        help=f"Runtime image to build: {runtime_options}",
     )
     build_parser.add_argument("--python-version", default="3.11", help=SUPPRESS)
 
     run_parser = subparsers.add_parser("run", help="Run candidates for a task")
     run_parser.add_argument("task_dir", nargs="?", help="Path to task directory")
     group = run_parser.add_mutually_exclusive_group(required=False)
-    group.add_argument("--candidate", help="Path to one candidate .py file")
+    group.add_argument("--candidate", help="Path to one candidate source file")
     group.add_argument("--candidates", help="Path to candidates.jsonl")
     run_parser.add_argument("--out", help="Output JSONL file")
     run_parser.add_argument("--workers", type=int, default=1, help="Parallel workers")
@@ -335,12 +336,18 @@ def _cmd_build_image(tag: str | None, runtime: str, python_version: str = "3.11"
 
 
 def _dockerfile_for_runtime(runtime: str, python_version: str = "3.11") -> str:
+    if runtime == "go":
+        return "FROM golang:1.26\nWORKDIR /workspace\n"
+    if runtime == "java":
+        return "FROM eclipse-temurin:21-jdk\nWORKDIR /workspace\n"
     if runtime == "python":
         return (
             f"FROM python:{python_version}-slim\n"
             "RUN pip install --no-cache-dir pytest\n"
             "WORKDIR /workspace\n"
         )
+    if runtime == "rust":
+        return "FROM rust:1-slim\nWORKDIR /workspace\n"
     if runtime == "javascript":
         return "FROM node:20-slim\nWORKDIR /workspace\n"
     if runtime == "typescript":
@@ -389,7 +396,7 @@ def _cmd_run(
     task = Task.from_dir(task_dir)
 
     if candidate_file is not None:
-        candidates = [Candidate.from_file(candidate_file)]
+        candidates = [Candidate.from_file(candidate_file, entry_file=task.entry_file)]
     elif candidates_file is not None:
         candidates = Candidate.from_jsonl(candidates_file)
     else:
