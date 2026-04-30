@@ -1,0 +1,35 @@
+id = "javascript_complex_file_mode_100"
+mode = "file"
+language = "javascript"
+
+
+[candidates]
+path = "candidates_100.jsonl"
+type = "jsonl"
+
+[setup]
+commands = []
+
+[[eval.commands]]
+name = "tests"
+command = "node --test --test-reporter=tap test/math_ops.test.js"
+result_format = "tap"
+
+[output]
+path = "runs/javascript_complex_file_mode_100_results.jsonl"
+
+[runner]
+workers = 6
+
+[sandbox]
+image = "coderoll-node:20"
+timeout = 20
+memory = "512m"
+cpus = "1"
+pids_limit = 128
+network = false
+
+[viewer]
+enabled = true
+out = "runs/javascript_complex_file_mode_100.viewer.html"
+open = false

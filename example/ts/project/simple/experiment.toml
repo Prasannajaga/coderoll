@@ -1,0 +1,42 @@
+id = "ts_project_simple"
+mode = "project"
+language = "typescript"
+
+
+[project]
+path = "generated_project"
+
+[setup]
+commands = []
+
+[[eval.commands]]
+name = "typecheck"
+command = "tsc --noEmit"
+result_format = "exit_code"
+[[eval.commands]]
+name = "build"
+command = "tsc --outDir dist"
+result_format = "exit_code"
+[[eval.commands]]
+name = "tests"
+command = "node --test --test-reporter=tap dist/test_solution.test.js"
+result_format = "tap"
+
+[output]
+path = "runs/ts_project_simple_results.jsonl"
+
+[runner]
+workers = 1
+
+[sandbox]
+image = "coderoll-node-ts:20"
+timeout = 20
+memory = "512m"
+cpus = "1"
+pids_limit = 128
+network = false
+
+[viewer]
+enabled = true
+out = "runs/ts_project_simple.viewer.html"
+open = false

@@ -1,0 +1,43 @@
+id = "typescript_simple_file_mode_100"
+mode = "file"
+language = "typescript"
+
+
+[candidates]
+path = "candidates_100.jsonl"
+type = "jsonl"
+
+[setup]
+commands = []
+
+[[eval.commands]]
+name = "typecheck"
+command = "tsc --noEmit"
+result_format = "exit_code"
+[[eval.commands]]
+name = "build"
+command = "tsc --outDir dist"
+result_format = "exit_code"
+[[eval.commands]]
+name = "tests"
+command = "node --test --test-reporter=tap dist/test_solution.test.js"
+result_format = "tap"
+
+[output]
+path = "runs/typescript_simple_file_mode_100_results.jsonl"
+
+[runner]
+workers = 6
+
+[sandbox]
+image = "coderoll-node-ts:20"
+timeout = 30
+memory = "512m"
+cpus = "1"
+pids_limit = 128
+network = false
+
+[viewer]
+enabled = true
+out = "runs/typescript_simple_file_mode_100.viewer.html"
+open = false
