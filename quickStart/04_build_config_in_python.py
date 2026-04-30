@@ -3,8 +3,10 @@ from pathlib import Path
 from coderoll.config import (
     CandidatesConfig,
     EvalConfig,
+    EvalCommandConfig,
     FileConfig,
     OutputConfig,
+    RankConfig,
     RunConfig,
     RunnerConfig,
     SandboxConfig,
@@ -25,12 +27,30 @@ def main() -> None:
             test_file="test_solution.py",
         ),
         candidates=CandidatesConfig(
-            path=Path("examples/file_mode/candidates.jsonl"),
+            path=Path("example/python/project/simple/candidates_100.jsonl"),
             type="jsonl",
         ),
-        setup=SetupConfig(commands=[]),
-        eval=EvalConfig(commands=[]),
+        setup=SetupConfig(
+            commands=[],
+        ),
+        eval=EvalConfig(
+            commands=[
+                EvalCommandConfig(
+                    name="tests",
+                    command="python -m pytest -q test_solution.py --junitxml=.coderoll-results.xml",
+                    result_format="junit",
+                )
+            ],
+            stop_on_first_failure=False,
+            score_strategy="weighted",
+        ),
         output=OutputConfig(path=Path("runs/sdk_file_mode_results.jsonl")),
+        rank=RankConfig(
+            enabled=True,
+            profile="default",
+            out=None,
+            top=None,
+        ),
         runner=RunnerConfig(workers=2),
         sandbox=SandboxConfig(
             image="coderoll-python:3.11",
@@ -40,30 +60,18 @@ def main() -> None:
             pids_limit=128,
             network=False,
         ),
-        viewer=ViewerConfig(enabled=False),
+        viewer=ViewerConfig(
+            enabled=True,
+            out="runs/sdk_file_mode_results.viewer.html",
+            open=False,
+        ),
         raw={},
         base_dir=Path(".").resolve(),
     )
 
-    # Because this config is created directly, include the default Python eval command.
-    # Loading YAML with language: python fills this automatically.
-    config.eval.commands = load_python_eval_commands()
-
     results = run_from_config(config)
     print("summary:", results.summary())
     print("output:", config.output_path)
-
-
-def load_python_eval_commands():
-    from coderoll.config import EvalCommandConfig
-
-    return [
-        EvalCommandConfig(
-            name="tests",
-            command="python -m pytest -q --junitxml=.coderoll-results.xml",
-            result_format="junit",
-        )
-    ]
 
 
 if __name__ == "__main__":

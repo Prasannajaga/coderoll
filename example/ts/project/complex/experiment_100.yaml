@@ -1,10 +1,9 @@
-id: typescript_complex_file_mode_100
-mode: file
+id: typescript_complex_project_mode_100
+mode: project
 language: typescript
 
-candidates:
-  path: candidates_100.jsonl
-  type: jsonl
+project:
+  path: generated_project_v2
 
 setup:
   commands: []
@@ -22,10 +21,10 @@ eval:
       result_format: tap
 
 output:
-  path: runs/typescript_complex_file_mode_100_results.jsonl
+  path: runs/typescript_complex_project_mode_100_results.jsonl
 
 runner:
-  workers: 6
+  workers: 1
 
 sandbox:
   image: coderoll-node-ts:20
@@ -37,5 +36,5 @@ sandbox:
 
 viewer:
   enabled: true
-  out: runs/typescript_complex_file_mode_100.viewer.html
+  out: runs/typescript_complex_project_mode_100.viewer.html
   open: false

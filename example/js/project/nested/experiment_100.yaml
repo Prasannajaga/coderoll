@@ -1,10 +1,9 @@
-id: javascript_nested_file_mode_100
-mode: file
+id: javascript_nested_project_mode_100
+mode: project
 language: javascript
 
-candidates:
-  path: candidates_100.jsonl
-  type: jsonl
+project:
+  path: generated_project_v2
 
 setup:
   commands: []
@@ -16,10 +15,10 @@ eval:
       result_format: tap
 
 output:
-  path: runs/javascript_nested_file_mode_100_results.jsonl
+  path: runs/javascript_nested_project_mode_100_results.jsonl
 
 runner:
-  workers: 6
+  workers: 1
 
 sandbox:
   image: coderoll-node:20
@@ -31,5 +30,5 @@ sandbox:
 
 viewer:
   enabled: true
-  out: runs/javascript_nested_file_mode_100.viewer.html
+  out: runs/javascript_nested_project_mode_100.viewer.html
   open: false
