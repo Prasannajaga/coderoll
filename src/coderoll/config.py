@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
+import re
 from typing import Any
 import tomllib
 
@@ -21,6 +22,14 @@ DEFAULT_EXCLUDE = [
 
 def default_excludes() -> list[str]:
     return list(DEFAULT_EXCLUDE)
+
+
+def default_ranked_path(output_path: str | Path) -> Path:
+    path = Path(output_path)
+    if str(path).endswith(".jsonl"):
+        ranked_name = f"{path.name[:-6]}.ranked.jsonl"
+        return path.with_name(ranked_name)
+    return Path(f"{path}.ranked.jsonl")
 
 
 @dataclass
@@ -68,6 +77,14 @@ class OutputConfig:
 
 
 @dataclass
+class RankConfig:
+    enabled: bool = True
+    profile: str = "default"
+    out: Path | None = None
+    top: int | None = None
+
+
+@dataclass
 class SandboxConfig:
     image: str | None = None
     timeout: int = 5
@@ -100,6 +117,7 @@ class RunConfig:
     setup: SetupConfig
     eval: EvalConfig
     output: OutputConfig
+    rank: RankConfig
     runner: RunnerConfig
     sandbox: SandboxConfig
     viewer: ViewerConfig
@@ -170,6 +188,7 @@ def normalize_config(data: dict[str, Any], base_dir: Path) -> RunConfig:
     setup = _normalize_setup(data)
     eval_config = _normalize_eval(data, runtime)
     output = OutputConfig(path=_resolve_required_path(data, "output", base_dir))
+    rank = _normalize_rank(data, base_dir)
     runner = _normalize_runner(data)
     sandbox = _normalize_sandbox(data, runtime)
     viewer = _normalize_viewer(data, base_dir)
@@ -199,6 +218,7 @@ def normalize_config(data: dict[str, Any], base_dir: Path) -> RunConfig:
         setup=setup,
         eval=eval_config,
         output=output,
+        rank=rank,
         runner=runner,
         sandbox=sandbox,
         viewer=viewer,
@@ -320,7 +340,7 @@ def _normalize_sandbox(data: dict[str, Any], runtime: Any | None = None) -> Sand
         image=_optional_str_or_none(section, "image") or default_image,
         timeout=_optional_positive_int(section, "timeout", 5, "sandbox.timeout"),
         memory=_optional_str(section, "memory", "256m"),
-        cpus=_optional_str(section, "cpus", "1"),
+        cpus=_optional_cpu_value(section, "cpus", "1", "sandbox.cpus"),
         pids_limit=_optional_positive_int(section, "pids_limit", 128, "sandbox.pids_limit"),
         network=_optional_bool(section, "network", False, "sandbox.network"),
     )
@@ -336,6 +356,27 @@ def _normalize_viewer(data: dict[str, Any], base_dir: Path) -> ViewerConfig:
     if viewer.out is not None:
         viewer.out = str(_resolve_path(Path(viewer.out), base_dir))
     return viewer
+
+
+def _normalize_rank(data: dict[str, Any], base_dir: Path) -> RankConfig:
+    section = _optional_section(data, "rank")
+    profile = _optional_str(section, "profile", "default").strip().lower()
+    if profile not in {"default", "strict", "debug"}:
+        raise CoderollError("rank.profile must be one of: default, strict, debug")
+    out_value = section.get("out")
+    out_path: Path | None = None
+    if out_value is not None:
+        if not isinstance(out_value, str):
+            raise CoderollError("rank.out must be a string when set")
+        if out_value.strip():
+            out_path = _resolve_path(Path(out_value), base_dir)
+
+    return RankConfig(
+        enabled=_optional_bool(section, "enabled", True, "rank.enabled"),
+        profile=profile,
+        out=out_path,
+        top=_optional_positive_int_or_none(section, "top", "rank.top"),
+    )
 
 
 def _resolve_required_path(data: dict[str, Any], section_name: str, base_dir: Path) -> Path:
@@ -441,6 +482,15 @@ def _optional_positive_int(
     return value
 
 
+def _optional_positive_int_or_none(section: dict[str, Any], key: str, label: str) -> int | None:
+    value = section.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise CoderollError(f"{label} must be a positive integer")
+    return value
+
+
 def _optional_str_list(
     section: dict[str, Any],
     key: str,
@@ -456,3 +506,30 @@ def _optional_str_list(
             raise CoderollError(f"{label} must be a list of non-empty strings")
         result.append(item)
     return result
+
+
+def _optional_cpu_value(
+    section: dict[str, Any],
+    key: str,
+    default: str,
+    label: str,
+) -> str:
+    value = section.get(key, default)
+    if isinstance(value, bool):
+        raise CoderollError(f"{label} must be a positive rational value")
+    if isinstance(value, (int, float)):
+        normalized = str(value)
+    elif isinstance(value, str):
+        normalized = value.strip()
+    else:
+        raise CoderollError(f"{label} must be a positive rational value")
+
+    # Defensive normalization for accidental nested quoting such as "\"1\"".
+    if len(normalized) >= 2 and normalized[0] == normalized[-1] and normalized[0] in {"'", '"'}:
+        normalized = normalized[1:-1].strip()
+
+    if not re.fullmatch(r"\d+(?:\.\d+)?", normalized):
+        raise CoderollError(f"{label} must be a positive rational value")
+    if float(normalized) <= 0:
+        raise CoderollError(f"{label} must be a positive rational value")
+    return normalized

@@ -77,6 +77,9 @@ def test_pass_ratio(record: RunRecord) -> float:
     return min(max(ratio, 0.0), 1.0)
 
 
+test_pass_ratio.__test__ = False
+
+
 def candidate_size(record: RunRecord) -> int:
     files = getattr(record, "files", None)
     if isinstance(files, dict):

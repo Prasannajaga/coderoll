@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from coderoll.result import RunRecord
-from coderoll.stores.jsonl import JsonlStore
+from coderoll.stores.jsonl import JsonlStore, write_records
 
 
 def _record(candidate_id: str) -> RunRecord:
@@ -48,3 +48,14 @@ def test_jsonl_store_iter_records(tmp_path: Path) -> None:
     candidate_ids = [record.candidate_id for record in store.iter_records()]
 
     assert candidate_ids == ["a", "b", "c"]
+
+
+def test_write_records_overwrites_jsonl(tmp_path: Path) -> None:
+    path = tmp_path / "runs" / "ranked.jsonl"
+    store = JsonlStore(path)
+    store.append_many([_record("old_1"), _record("old_2")])
+
+    write_records(path, [_record("new_1")])
+
+    records = JsonlStore(path).read_all()
+    assert [record.candidate_id for record in records] == ["new_1"]

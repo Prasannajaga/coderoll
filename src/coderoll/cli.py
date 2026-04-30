@@ -6,17 +6,19 @@ import webbrowser
 from typing import Sequence
 
 from .candidate import Candidate
-from .config import load_config
+from .config import default_ranked_path, load_config
 from .errors import CandidateError, CoderollError, StoreError
 from .evaluators.pytest_eval import PytestEvaluator
 from .exporters import export_preferences, export_rewards, export_sft
 from .rankers.simple import explain_rank, rank_records
+from .run_logging import EventLogger, RunStage, StageReporter
 from .runner import Runner, run_from_config
 from .runtimes import get_runtime
 from .sandboxes.docker_cli import DockerSandbox
-from .stores.jsonl import JsonlStore
+from .stores.jsonl import JsonlStore, write_records
 from .task import Task
 from .viewer import default_viewer_path, write_viewer
+from uuid import uuid4
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -46,6 +48,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 results_path=Path(args.results_jsonl),
                 top=args.top,
                 profile=args.profile,
+                out_path=Path(args.out) if args.out else None,
                 show_reason=args.show_reason,
                 group_by=args.group_by,
                 show_code=args.show_code,
@@ -128,7 +131,8 @@ def _build_parser() -> ArgumentParser:
         default="default",
         help="Ranking profile to use",
     )
-    rank_parser.add_argument("--top", type=int, default=5, help="Number of top results")
+    rank_parser.add_argument("--top", type=int, help="Number of top results")
+    rank_parser.add_argument("--out", help="Write ranked records to a JSONL file")
     rank_parser.add_argument(
         "--show-reason",
         action="store_true",
@@ -246,6 +250,9 @@ def _sample_yaml_config() -> str:
         "      result_format: junit\n\n"
         "output:\n"
         "  path: runs/file_mode_results.jsonl\n\n"
+        "rank:\n"
+        "  enabled: true\n"
+        "  profile: default\n\n"
         "runner:\n"
         "  workers: 1\n\n"
         "sandbox:\n"
@@ -280,6 +287,9 @@ def _sample_toml_config() -> str:
         'result_format = "junit"\n\n'
         "[output]\n"
         'path = "runs/file_mode_results.jsonl"\n\n'
+        "[rank]\n"
+        "enabled = true\n"
+        'profile = "default"\n\n'
         "[runner]\n"
         "workers = 1\n\n"
         "[sandbox]\n"
@@ -405,22 +415,74 @@ def _cmd_run(
 
 def _cmd_run_from_config(config_path: Path) -> None:
     cfg = load_config(config_path)
-    results = run_from_config(cfg)
-    _print_run_summary(
-        task_id=cfg.id,
-        output_path=cfg.output_path,
-        summary=results.summary(),
-        errors=[record.error for record in results.records if record.error],
-        config_id=cfg.id,
-    )
+    run_id = f"run_{uuid4().hex}"
+    run_dir = cfg.output_path.parent / run_id
+    logger = EventLogger(run_dir=run_dir, run_id=run_id)
+    reporter = StageReporter(logger=logger, total_steps=5)
 
-    if cfg.viewer.enabled:
-        viewer_out = Path(cfg.viewer.out) if cfg.viewer.out else default_viewer_path(cfg.output_path)
-        title = f"coderoll run: {cfg.id}"
-        written = write_viewer(results.records, viewer_out, title=title)
-        print(f"viewer: {written}")
-        if cfg.viewer.open:
-            webbrowser.open(written.resolve().as_uri())
+    try:
+        reporter.step(1, RunStage.CREATING_SANDBOX, "Creating sandbox")
+        reporter.step(2, RunStage.EXECUTING_SANDBOX, "Executing sandbox")
+        results = run_from_config(cfg)
+        reporter.step(
+            3,
+            RunStage.SANDBOX_EXECUTION_COMPLETE,
+            "Sandbox execution complete",
+            record_count=len(results.records),
+        )
+
+        raw_output_path = cfg.output_path
+        summary_lines = {
+            "task_id": cfg.id,
+            "output_path": raw_output_path,
+            "summary": results.summary(),
+            "errors": [record.error for record in results.records if record.error],
+            "config_id": cfg.id,
+        }
+
+        reporter.step(4, RunStage.RANKING_RESULTS, "Ranking results", enabled=cfg.rank.enabled)
+        viewer_input_path = raw_output_path
+        viewer_records = results.records
+        ranked_output: Path | None = None
+        if cfg.rank.enabled:
+            try:
+                ranked_records = rank_records(results.records, profile=cfg.rank.profile)
+            except ValueError as exc:
+                raise CoderollError(f"Failed to rank run results: {exc}") from exc
+            if cfg.rank.top is not None:
+                ranked_records = ranked_records[: cfg.rank.top]
+            ranked_output = cfg.rank.out or default_ranked_path(raw_output_path)
+            write_records(ranked_output, ranked_records)
+            viewer_input_path = ranked_output
+            viewer_records = ranked_records
+
+        reporter.step(5, RunStage.EXPORTING_RESULTS, "Exporting results")
+        viewer_written: Path | None = None
+        if cfg.viewer.enabled:
+            viewer_out = Path(cfg.viewer.out) if cfg.viewer.out else default_viewer_path(viewer_input_path)
+            if cfg.rank.enabled:
+                title = f"coderoll results - ranked by {cfg.rank.profile}"
+            else:
+                title = f"coderoll run: {cfg.id}"
+            viewer_written = write_viewer(viewer_records, viewer_out, title=title)
+            if cfg.viewer.open:
+                webbrowser.open(viewer_written.resolve().as_uri())
+
+        reporter.done()
+        _print_run_summary(
+            task_id=summary_lines["task_id"],
+            output_path=summary_lines["output_path"],
+            summary=summary_lines["summary"],
+            errors=summary_lines["errors"],
+            config_id=summary_lines["config_id"],
+        )
+        if ranked_output is not None:
+            print(f"ranked_output: {ranked_output}")
+        if viewer_written is not None:
+            print(f"viewer: {viewer_written}")
+    except Exception as exc:
+        reporter.failed("Run failed", exc)
+        raise
 
 
 def _is_config_path(path: Path) -> bool:
@@ -429,8 +491,9 @@ def _is_config_path(path: Path) -> bool:
 
 def _cmd_rank(
     results_path: Path,
-    top: int,
+    top: int | None,
     profile: str,
+    out_path: Path | None,
     show_reason: bool,
     group_by: str | None,
     show_code: bool,
@@ -439,6 +502,14 @@ def _cmd_rank(
 ) -> None:
     if only_failed and only_passed:
         raise ValueError("Use only one of --failed or --passed")
+    if top is not None and top <= 0:
+        raise ValueError("--top must be a positive integer when set")
+    if out_path is not None and group_by is not None:
+        raise ValueError("--out cannot be used with --group-by")
+
+    effective_top = top
+    if effective_top is None and out_path is None:
+        effective_top = 5
 
     records = JsonlStore(results_path).read_all()
     if only_failed:
@@ -452,8 +523,15 @@ def _cmd_rank(
 
     if group_by is None:
         ranked = rank_records(records, profile=profile)
-        if top > 0:
-            ranked = ranked[:top]
+        if effective_top is not None:
+            ranked = ranked[:effective_top]
+        if out_path is not None:
+            write_records(out_path, ranked)
+            print(f"input: {results_path}")
+            print(f"output: {out_path}")
+            print(f"profile: {profile}")
+            print(f"rows_written: {len(ranked)}")
+            return
         _print_ranked_records(ranked, show_reason=show_reason, show_code=show_code)
         return
 
@@ -465,8 +543,8 @@ def _cmd_rank(
 
     for group_label in sorted(grouped):
         ranked = rank_records(grouped[group_label], profile=profile)
-        if top > 0:
-            ranked = ranked[:top]
+        if effective_top is not None:
+            ranked = ranked[:effective_top]
         if not ranked:
             continue
         print(f"[{group_by}={group_label}]")

@@ -6,7 +6,7 @@ import pytest
 
 from coderoll.cli import main
 import coderoll.cli as cli
-from coderoll.config import load_config, load_config_dict
+from coderoll.config import default_ranked_path, load_config, load_config_dict
 from coderoll.errors import CoderollError
 
 
@@ -214,6 +214,18 @@ def test_relative_paths_resolve_from_config_location(tmp_path: Path) -> None:
     assert cfg.output_path == (tmp_path / "runs" / "results.jsonl").resolve()
 
 
+def test_default_ranked_path_jsonl_suffix() -> None:
+    assert default_ranked_path("runs/results.jsonl") == Path("runs/results.ranked.jsonl")
+
+
+def test_default_ranked_path_non_jsonl_suffix() -> None:
+    assert default_ranked_path("runs/results.ndjson") == Path("runs/results.ndjson.ranked.jsonl")
+
+
+def test_default_ranked_path_no_suffix() -> None:
+    assert default_ranked_path("runs/results") == Path("runs/results.ranked.jsonl")
+
+
 def test_load_config_invalid_workers(tmp_path: Path) -> None:
     candidates = tmp_path / "candidates.jsonl"
     candidates.write_text('{"files":{"solution.py":"x = 1"}}\n', encoding="utf-8")
@@ -236,6 +248,144 @@ def test_load_config_invalid_workers(tmp_path: Path) -> None:
         load_config(cfg_path)
 
 
+def test_rank_defaults_when_section_missing(tmp_path: Path) -> None:
+    candidates = tmp_path / "candidates.jsonl"
+    candidates.write_text('{"files":{"solution.py":"x = 1"}}\n', encoding="utf-8")
+    cfg_path = tmp_path / "experiment.toml"
+    cfg_path.write_text(
+        'id = "file_eval"\n'
+        'mode = "file"\n\n'
+        "[candidates]\n"
+        'path = "candidates.jsonl"\n\n'
+        "[[eval.commands]]\n"
+        'command = "python -m pytest"\n\n'
+        "[output]\n"
+        'path = "runs/results.jsonl"\n',
+        encoding="utf-8",
+    )
+
+    cfg = load_config(cfg_path)
+
+    assert cfg.rank.enabled is True
+    assert cfg.rank.profile == "default"
+    assert cfg.rank.out is None
+    assert cfg.rank.top is None
+
+
+def test_rank_invalid_profile_rejected(tmp_path: Path) -> None:
+    candidates = tmp_path / "candidates.jsonl"
+    candidates.write_text('{"files":{"solution.py":"x = 1"}}\n', encoding="utf-8")
+    cfg_path = tmp_path / "experiment.toml"
+    cfg_path.write_text(
+        'id = "file_eval"\n'
+        'mode = "file"\n\n'
+        "[candidates]\n"
+        'path = "candidates.jsonl"\n\n'
+        "[[eval.commands]]\n"
+        'command = "python -m pytest"\n\n'
+        "[output]\n"
+        'path = "runs/results.jsonl"\n\n'
+        "[rank]\n"
+        'profile = "fast"\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CoderollError, match="rank.profile must be one of: default, strict, debug"):
+        load_config(cfg_path)
+
+
+def test_rank_invalid_top_rejected(tmp_path: Path) -> None:
+    candidates = tmp_path / "candidates.jsonl"
+    candidates.write_text('{"files":{"solution.py":"x = 1"}}\n', encoding="utf-8")
+    cfg_path = tmp_path / "experiment.toml"
+    cfg_path.write_text(
+        'id = "file_eval"\n'
+        'mode = "file"\n\n'
+        "[candidates]\n"
+        'path = "candidates.jsonl"\n\n'
+        "[[eval.commands]]\n"
+        'command = "python -m pytest"\n\n'
+        "[output]\n"
+        'path = "runs/results.jsonl"\n\n'
+        "[rank]\n"
+        "top = 0\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CoderollError, match="rank.top must be a positive integer"):
+        load_config(cfg_path)
+
+
+def test_rank_out_resolves_from_config_dir(tmp_path: Path) -> None:
+    candidates = tmp_path / "candidates.jsonl"
+    candidates.write_text('{"files":{"solution.py":"x = 1"}}\n', encoding="utf-8")
+    cfg_dir = tmp_path / "configs"
+    cfg_dir.mkdir()
+    cfg_path = cfg_dir / "experiment.toml"
+    cfg_path.write_text(
+        'id = "file_eval"\n'
+        'mode = "file"\n\n'
+        "[candidates]\n"
+        'path = "../candidates.jsonl"\n\n'
+        "[[eval.commands]]\n"
+        'command = "python -m pytest"\n\n'
+        "[output]\n"
+        'path = "../runs/results.jsonl"\n\n'
+        "[rank]\n"
+        'out = "../runs/strict_ranked.jsonl"\n',
+        encoding="utf-8",
+    )
+
+    cfg = load_config(cfg_path)
+
+    assert cfg.rank.out == (tmp_path / "runs" / "strict_ranked.jsonl").resolve()
+
+
+def test_sandbox_cpus_nested_quotes_are_normalized(tmp_path: Path) -> None:
+    candidates = tmp_path / "candidates.jsonl"
+    candidates.write_text('{"files":{"solution.py":"x = 1"}}\n', encoding="utf-8")
+    cfg_path = tmp_path / "experiment.toml"
+    cfg_path.write_text(
+        'id = "file_eval"\n'
+        'mode = "file"\n\n'
+        "[candidates]\n"
+        'path = "candidates.jsonl"\n\n'
+        "[[eval.commands]]\n"
+        'command = "python -m pytest"\n\n'
+        "[output]\n"
+        'path = "runs/results.jsonl"\n\n'
+        "[sandbox]\n"
+        'cpus = "\\"1\\""\n',
+        encoding="utf-8",
+    )
+
+    cfg = load_config(cfg_path)
+
+    assert cfg.sandbox.cpus == "1"
+
+
+def test_sandbox_cpus_invalid_value_rejected(tmp_path: Path) -> None:
+    candidates = tmp_path / "candidates.jsonl"
+    candidates.write_text('{"files":{"solution.py":"x = 1"}}\n', encoding="utf-8")
+    cfg_path = tmp_path / "experiment.toml"
+    cfg_path.write_text(
+        'id = "file_eval"\n'
+        'mode = "file"\n\n'
+        "[candidates]\n"
+        'path = "candidates.jsonl"\n\n'
+        "[[eval.commands]]\n"
+        'command = "python -m pytest"\n\n'
+        "[output]\n"
+        'path = "runs/results.jsonl"\n\n'
+        "[sandbox]\n"
+        'cpus = "abc"\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(CoderollError, match="sandbox.cpus must be a positive rational value"):
+        load_config(cfg_path)
+
+
 def test_init_config_toml_generation(tmp_path: Path) -> None:
     cfg_path = tmp_path / "coderoll.toml"
     exit_code = main(["init-config", str(cfg_path)])
@@ -245,6 +395,8 @@ def test_init_config_toml_generation(tmp_path: Path) -> None:
     text = cfg_path.read_text(encoding="utf-8")
     assert 'id = "file_mode_eval"' in text
     assert 'mode = "file"' in text
+    assert "[rank]" in text
+    assert 'profile = "default"' in text
 
 
 def test_init_config_yaml_generation(tmp_path: Path) -> None:
@@ -256,6 +408,8 @@ def test_init_config_yaml_generation(tmp_path: Path) -> None:
     text = cfg_path.read_text(encoding="utf-8")
     assert "id: file_mode_eval" in text
     assert "mode: file" in text
+    assert "rank:" in text
+    assert "profile: default" in text
 
 
 def test_yaml_missing_dependency_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

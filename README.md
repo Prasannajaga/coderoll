@@ -14,9 +14,9 @@ coderoll --help
 coderoll init TASK_DIR
 coderoll init-config PATH [--force]
 coderoll build-image [--runtime python|javascript|typescript] [--tag TAG]
-coderoll run CONFIG.{toml,yaml,yml}
-coderoll run TASK_DIR [--candidate FILE | --candidates FILE.jsonl] --out RESULTS.jsonl [--workers N]
-coderoll rank RESULTS.jsonl [--profile default|strict|debug] [--top N] [--show-reason] [--group-by config_id|mode|candidate_mode|phase|passed] [--show-code] [--passed | --failed]
+coderoll run [TASK_DIR] [--candidate FILE | --candidates FILE.jsonl] [--out RESULTS.jsonl] [--workers N] [--config CONFIG.{toml,yaml,yml}]
+coderoll validate-config CONFIG.{toml,yaml,yml}
+coderoll rank RESULTS.jsonl [--profile default|strict|debug] [--top N] [--out RANKED.jsonl] [--show-reason] [--group-by config_id|mode|candidate_mode|phase|passed] [--show-code] [--passed | --failed]
 coderoll inspect RESULTS.jsonl --id CANDIDATE_ID
 coderoll view RESULTS.jsonl [--out REPORT.html] [--title TITLE] [--no-open]
 coderoll export RESULTS.jsonl --format {sft,preference,rewards} --out DATASET.jsonl [--include-metadata]
@@ -81,6 +81,66 @@ You can generate a starter config:
 coderoll init-config coderoll.toml
 coderoll init-config coderoll.yaml
 ```
+
+## Automatic ranking
+
+After every config run, `coderoll` writes raw results and ranked results by default.
+
+- Raw results: `output.path`
+- Ranked results: `output.path` + `.ranked.jsonl`
+
+For example, if:
+
+```yaml
+output:
+  path: runs/file_mode_results.jsonl
+```
+
+Then `coderoll run ...` writes:
+
+- `runs/file_mode_results.jsonl`
+- `runs/file_mode_results.ranked.jsonl`
+
+Ranking defaults:
+
+```yaml
+rank:
+  enabled: true
+  profile: default
+```
+
+Disable automatic ranking:
+
+```yaml
+rank:
+  enabled: false
+```
+
+Use strict ranking:
+
+```yaml
+rank:
+  profile: strict
+```
+
+Write top N only:
+
+```yaml
+rank:
+  top: 10
+```
+
+Example:
+
+```bash
+coderoll run examples/file_mode/experiment.yaml
+```
+
+Produces:
+
+- `runs/file_mode_results.jsonl`
+- `runs/file_mode_results.ranked.jsonl`
+- `runs/file_mode.viewer.html`
 
 ## Backward-Compatible Flag Mode
 
