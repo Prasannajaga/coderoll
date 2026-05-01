@@ -1,7 +1,6 @@
 # coderoll
 
-`coderoll` is a local-first Python tool to evaluate AI-generated code in Docker sandboxes.
-It runs candidates, executes tests, and writes JSONL results for ranking, inspection, and export.
+`coderoll` is a local-first Python tool to evaluate AI-generated code in Docker sandboxes. It runs candidates, executes tests, and writes JSONL results for ranking, inspection, and export.
 
 ## Quickstart
 
@@ -40,6 +39,18 @@ coderoll view runs/my-task_results.jsonl
 ```
 
 More SDK-style examples are available in `quickStart/README.md`.
+
+```bash
+# multi-language SDK usage (python/js/ts + optional go config)
+uv run python quickStart/05_multilang_usage.py
+
+# optional: run go too when you have a go config
+uv run python quickStart/05_multilang_usage.py --go-config path/to/go/experiment.toml
+```
+
+## Architecture Diagram
+
+![coderoll architecture diagram](assets/architecture_handdrawn.png)
 
 ## CLI Usage
 
