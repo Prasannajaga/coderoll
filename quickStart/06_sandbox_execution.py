@@ -18,10 +18,26 @@ def main() -> None:
     inline_result = execute_simple(
         sandbox=sandbox,
         language="python",
-        code="print('hello from inline code', 10+10)",
+        code="""
+        import random
+
+        # Generate a random integer between 1 and 100
+        num = random.randint(1, 100)
+        print(f"Random Number: {num}")
+
+        # Pick a random item from a list
+        choices = ['Apple', 'Banana', 'Cherry', 'Dragonfruit']
+        pick = random.choice(choices)
+        print(f"I chose: {pick}")
+
+        # Shuffle a list in place
+        deck = [1, 2, 3, 4, 5]
+        random.shuffle(deck)
+        print(f"Shuffled deck: {deck}")  
+        """,
     )
 
-    print("Result: \n" , inline_result.stdout)
+    print("Result: \n" , inline_result.stdout , inline_result.stderr)
 
     # Case 2: execute a real source file (copied to sandbox workspace internally).
     sample_file = Path("runs/quickstart_simple_exec.py")

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import ast
 from dataclasses import dataclass
 from pathlib import Path
 import shutil
 import tempfile
+import textwrap
 
 from .config import EvalCommandConfig, SandboxConfig
 from .errors import CoderollError
@@ -47,7 +49,8 @@ def execute_simple(
         entry_path.parent.mkdir(parents=True, exist_ok=True)
 
         if code is not None:
-            entry_path.write_text(code, encoding="utf-8")
+            prepared_code = _prepare_inline_code(language=language, code=code)
+            entry_path.write_text(prepared_code, encoding="utf-8")
         else:
             source_path = Path(file) if file is not None else None
             if source_path is None or not source_path.exists() or not source_path.is_file():
@@ -105,3 +108,22 @@ def _default_run_command(language: str, entry_name: str) -> str:
         class_name = Path(entry_name).stem
         return f"javac {entry_name} && java {class_name}"
     raise CoderollError(f"Unsupported language for default execute command: {language}")
+
+
+def _prepare_inline_code(*, language: str, code: str) -> str:
+    # Keep behavior stable for non-indented snippets while fixing common triple-quoted indentation.
+    normalized = textwrap.dedent(code).lstrip("\n")
+    if not normalized.strip():
+        return normalized
+
+    key = language.strip().lower()
+    if key == "python":
+        # Validate the normalized Python source. If parsing fails, keep original input unchanged
+        # so we do not regress existing callers that intentionally rely on exact formatting.
+        try:
+            ast.parse(normalized)
+            return normalized
+        except SyntaxError:
+            return code
+
+    return normalized

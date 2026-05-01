@@ -82,6 +82,50 @@ def test_execute_simple_runs_file_input(tmp_path: Path, monkeypatch) -> None:
     assert result.passed is True
 
 
+def test_execute_simple_dedents_inline_python(monkeypatch) -> None:
+    def fake_run_workspace(self, **kwargs):  # noqa: ANN001
+        workspace_path = kwargs["workspace_path"]
+        source = (workspace_path / "solution.py").read_text(encoding="utf-8")
+        assert source.startswith("print('hi')\n")
+        assert "\n    print('again')" not in source
+        return _fake_execution_result(stdout="hi\nagain\n")
+
+    monkeypatch.setattr("coderoll.sandboxes.docker_cli.DockerSandbox.run_workspace", fake_run_workspace)
+
+    result = execute_simple(
+        sandbox=SandboxConfig(image="coderoll-python:3.11", timeout=5),
+        language="python",
+        code="""
+            print('hi')
+            print('again')
+        """,
+    )
+
+    assert result.stdout == "hi\nagain\n"
+    assert result.passed is True
+
+
+def test_execute_simple_keeps_file_input_as_is(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "script.py"
+    content = "print('keep me exactly')\n"
+    source.write_text(content, encoding="utf-8")
+
+    def fake_run_workspace(self, **kwargs):  # noqa: ANN001
+        workspace_path = kwargs["workspace_path"]
+        copied = (workspace_path / "solution.py").read_text(encoding="utf-8")
+        assert copied == content
+        return _fake_execution_result(stdout="keep me exactly\n")
+
+    monkeypatch.setattr("coderoll.sandboxes.docker_cli.DockerSandbox.run_workspace", fake_run_workspace)
+
+    result = execute_simple(
+        sandbox=SandboxConfig(image="coderoll-python:3.11", timeout=5),
+        language="python",
+        file=source,
+    )
+    assert result.passed is True
+
+
 def test_execute_simple_requires_exactly_one_input() -> None:
     sandbox = SandboxConfig(image="coderoll-python:3.11", timeout=5)
 
