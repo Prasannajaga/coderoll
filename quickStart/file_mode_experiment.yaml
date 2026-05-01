@@ -1,0 +1,45 @@
+id: quickstart_file_mode
+mode: file
+language: python
+
+file:
+  code_file: solution.py
+  test_file: test_solution.py
+
+candidates:
+  path: ../example/python/project/simple/candidates_100.jsonl
+  type: jsonl
+
+setup:
+  commands: []
+
+eval:
+  commands:
+    - name: tests
+      command: python -m pytest -q test_solution.py --junitxml=.coderoll-results.xml
+      result_format: junit
+  stop_on_first_failure: false
+  score_strategy: weighted
+
+output:
+  path: ../runs/file_mode_results.jsonl
+
+rank:
+  enabled: true
+  profile: default
+
+runner:
+  workers: 2
+
+sandbox:
+  image: coderoll-python:3.11
+  timeout: 10
+  memory: 512m
+  cpus: "1"
+  pids_limit: 128
+  network: false
+
+viewer:
+  enabled: true
+  out: ../runs/file_mode_results.viewer.html
+  open: false

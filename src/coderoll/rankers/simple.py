@@ -1,6 +1,8 @@
-from typing import Any
+from typing import Any, Literal, TypeAlias
 
 from ..result import RunRecord
+
+RankProfile: TypeAlias = Literal["default", "strict", "debug"]
 
 
 def safe_float(value: Any, default: float = 0.0) -> float:
@@ -135,7 +137,7 @@ def debug_rank_key(record: RunRecord) -> tuple:
     )
 
 
-def rank_records(records: list[RunRecord], profile: str = "default") -> list[RunRecord]:
+def rank_records(records: list[RunRecord], profile: RankProfile = "default") -> list[RunRecord]:
     if profile == "default":
         key_fn = default_rank_key
     elif profile == "strict":

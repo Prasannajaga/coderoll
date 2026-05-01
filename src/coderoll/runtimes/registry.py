@@ -28,7 +28,7 @@ _RUNTIMES: dict[str, RuntimeSpec] = {
         result_format="junit",
     ),
     "rust": RuntimeSpec(
-        languag_RUNTIMESe="rust",
+        language="rust",
         default_image="coderoll-rust:1",
         default_entry_file="solution.rs",
         default_test_file="test_solution.rs",

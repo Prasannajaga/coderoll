@@ -7,10 +7,16 @@ Run from the repository root.
 ## 1. Run an experiment config
 
 ```bash
-uv run --with pyyaml python quickStart/01_run_config.py
+uv run python quickStart/01_run_config.py
 ```
 
-This loads `examples/file_mode/experiment.yaml`, runs it, writes JSONL records, and prints a short summary.
+YAML variant (requires `PyYAML`):
+
+```bash
+uv run --with pyyaml python quickStart/01_run_config.py --config quickStart/file_mode_experiment.yaml
+```
+
+This loads `quickStart/file_mode_experiment.toml` by default, runs it, writes JSONL records, and prints a short summary.
 
 ## 2. Rank saved results
 
@@ -41,17 +47,32 @@ uv run python quickStart/04_build_config_in_python.py
 
 This creates a `RunConfig` directly instead of loading YAML.
 
-## 5. Run one inline code snippet in Docker sandbox
+## 5. Multi-language project-mode run
+
+```bash
+uv run python quickStart/05_multilang_usage.py
+```
+
+Optional subset:
+
+```bash
+uv run python quickStart/05_multilang_usage.py --languages python javascript --workers 2
+```
+
+This builds and runs project-mode `RunConfig` values for selected languages and prints per-language summaries.
+
+## 6. Run one inline code snippet in Docker sandbox
 
 ```bash
 uv run python quickStart/06_sandbox_execution.py
 ```
 
-This creates one JSONL candidate in-memory style, runs `python solution.py` inside Docker, and prints:
+This uses the lightweight `execute_simple(...)` API with only:
 
-- sandbox `stdout`
-- pass/fail + score
-- `jsonResult` path (`runs/sdk_sandbox_stdout.jsonl`)
+- `SandboxConfig`
+- code as `string` or `file`
+
+The helper writes/copies code into a temp workspace, runs it in Docker, and returns output.
 
 ## Docker image
 

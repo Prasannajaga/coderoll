@@ -4,6 +4,7 @@ from .result import ExecutionResult, RunRecord, RunResults, Score
 from .runner import Runner
 from .sandboxes.docker_cli import DockerSandbox
 from .sandboxes.local_subprocess import LocalSubprocessSandbox
+from .simple_exec import SimpleExecutionResult, execute_simple
 from .stores.jsonl import JsonlStore
 from .task import Task
 
@@ -12,6 +13,8 @@ __all__ = [
     "Candidate",
     "DockerSandbox",
     "LocalSubprocessSandbox",
+    "execute_simple",
+    "SimpleExecutionResult",
     "PytestEvaluator",
     "JsonlStore",
     "Runner",

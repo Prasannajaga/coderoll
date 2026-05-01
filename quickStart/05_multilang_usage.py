@@ -19,6 +19,7 @@ from coderoll.config import (
 from coderoll.runner import run_from_config
 
 
+# Per-language runtime settings used to build RunConfig in one place.
 LANGUAGE_SETTINGS = {
     "python": {
         "project_path": Path("example/python/project/simple/generated_project"),
@@ -56,15 +57,19 @@ LANGUAGE_SETTINGS = {
 
 
 def build_run_config(language: str, workers: int) -> RunConfig | None:
+    # Look up static settings for this language.
     settings = LANGUAGE_SETTINGS[language]
     project_path = settings["project_path"]
+    # Skip languages that are not available in the local checkout.
     if project_path is None or not project_path.exists():
         print(f"[{language}] skipped: project path not found")
         return None
 
     run_id = f"sdk_wrapper_{language}_quickstart"
     output_path = Path(f"runs/{run_id}.jsonl")
+    base_dir = Path(".").resolve()
 
+    # Build a project-mode SDK config for the selected language.
     return RunConfig(
         id=run_id,
         mode="project",
@@ -100,11 +105,12 @@ def build_run_config(language: str, workers: int) -> RunConfig | None:
         ),
         viewer=ViewerConfig(enabled=False, out=None, open=False),
         raw={},
-        base_dir=Path(".").resolve(),
+        base_dir=base_dir,
     )
 
 
 def parse_args() -> argparse.Namespace:
+    # CLI wrapper to choose language subset and worker count.
     parser = argparse.ArgumentParser(
         description="Run coderoll quickstart examples with SDK wrapper classes only.",
     )
@@ -126,6 +132,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    # Run one language at a time and print per-language summaries.
     for language in args.languages:
         config = build_run_config(language=language, workers=args.workers)
         if config is None:

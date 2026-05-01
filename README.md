@@ -1,6 +1,6 @@
 # coderoll
 
-`coderoll` is a local-first Python tool to evaluate AI-generated code in Docker sandboxes. It runs candidates, executes tests, and writes JSONL results for ranking, inspection, and export.
+`coderoll` is a local-first Python (dependency free) tool to evaluate AI-generated code in Docker sandboxes. It runs candidates, executes tests, and writes JSONL results for ranking, inspection, and export.
 
 ## Quickstart
 
@@ -39,6 +39,101 @@ coderoll view runs/my-task_results.jsonl
 ```
 
 More SDK-style examples are available in `quickStart/README.md`.
+
+config equivalents (same run in TOML  and YAML):
+
+```toml
+id = "quickstart_file_mode"
+mode = "file"
+language = "python"
+output = "runs/file_mode_results.jsonl"
+
+[file]
+code_file = "solution.py"
+test_file = "test_solution.py"
+
+[candidates]
+path = "example/python/project/simple/candidates_100.jsonl"
+type = "jsonl"
+
+[setup]
+commands = []
+
+[[eval.commands]]
+name = "tests"
+command = "python -m pytest -q test_solution.py --junitxml=.coderoll-results.xml"
+result_format = "junit"
+
+[eval]
+stop_on_first_failure = false
+score_strategy = "weighted"
+
+[rank]
+enabled = true
+profile = "default"
+
+[runner]
+workers = 2
+
+[sandbox]
+image = "coderoll-python:3.11"
+timeout = 10
+memory = "512m"
+cpus = "1"
+pids_limit = 128
+network = false
+
+[viewer]
+enabled = true
+out = "runs/file_mode_results.viewer.html"
+open = false
+```
+
+```yaml
+id: quickstart_file_mode
+mode: file
+language: python
+output: runs/file_mode_results.jsonl
+
+file:
+  code_file: solution.py
+  test_file: test_solution.py
+
+candidates:
+  path: example/python/project/simple/candidates_100.jsonl
+  type: jsonl
+
+setup:
+  commands: []
+
+eval:
+  commands:
+    - name: tests
+      command: python -m pytest -q test_solution.py --junitxml=.coderoll-results.xml
+      result_format: junit
+  stop_on_first_failure: false
+  score_strategy: weighted
+
+rank:
+  enabled: true
+  profile: default
+
+runner:
+  workers: 2
+
+sandbox:
+  image: coderoll-python:3.11
+  timeout: 10
+  memory: 512m
+  cpus: "1"
+  pids_limit: 128
+  network: false
+
+viewer:
+  enabled: true
+  out: runs/file_mode_results.viewer.html
+  open: false
+```
 
 ```bash
 # multi-language SDK usage (python/js/ts + optional go config)
