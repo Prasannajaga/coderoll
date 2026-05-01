@@ -18,9 +18,10 @@ def main() -> None:
     inline_result = execute_simple(
         sandbox=sandbox,
         language="python",
-        code="print('hello from inline code')",
+        code="print('hello from inline code', 10+10)",
     )
-    print("inline stdout:", inline_result.stdout.strip())
+
+    print("Result: \n" , inline_result.stdout)
 
     # Case 2: execute a real source file (copied to sandbox workspace internally).
     sample_file = Path("runs/quickstart_simple_exec.py")
@@ -32,9 +33,7 @@ def main() -> None:
         language="python",
         file=sample_file,
     )
-    print("file stdout:", file_result.stdout.strip())
-    print("file exit_code:", file_result.exit_code)
-
+    print("Result: \n" , file_result.stdout)
 
 if __name__ == "__main__":
     main()
