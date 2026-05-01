@@ -41,6 +41,18 @@ uv run python quickStart/04_build_config_in_python.py
 
 This creates a `RunConfig` directly instead of loading YAML.
 
+## 5. Run one inline code snippet in Docker sandbox
+
+```bash
+uv run python quickStart/06_sandbox_execution.py
+```
+
+This creates one JSONL candidate in-memory style, runs `python solution.py` inside Docker, and prints:
+
+- sandbox `stdout`
+- pass/fail + score
+- `jsonResult` path (`runs/sdk_sandbox_stdout.jsonl`)
+
 ## Docker image
 
 The Python sample expects this image:

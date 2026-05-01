@@ -46,6 +46,44 @@ uv run python quickStart/05_multilang_usage.py
 
 # optional: run go too when you have a go config
 uv run python quickStart/05_multilang_usage.py --go-config path/to/go/experiment.toml
+
+# sandbox execution quickstart (single code snippet -> stdout)
+uv run python quickStart/06_sandbox_execution.py
+```
+
+Minimal SDK sandbox example (from `quickStart/06_sandbox_execution.py`):
+
+```python
+from pathlib import Path
+from coderoll.config import (
+    CandidatesConfig, EvalCommandConfig, EvalConfig, FileConfig, OutputConfig,
+    RankConfig, RunConfig, RunnerConfig, SandboxConfig, SetupConfig, ViewerConfig,
+)
+from coderoll.runner import run_from_config
+
+config = RunConfig(
+    id="sdk_sandbox_stdout",
+    mode="file",
+    language="python",
+    project=None,
+    file=FileConfig(code_file="solution.py", test_file="test_solution.py"),
+    candidates=CandidatesConfig(path=Path("runs/quickstart_inline_candidates.jsonl"), type="jsonl"),
+    setup=SetupConfig(commands=[]),
+    eval=EvalConfig(
+        commands=[EvalCommandConfig(name="run_code", command="python solution.py", result_format="exit_code")]
+    ),
+    output=OutputConfig(path=Path("runs/sdk_sandbox_stdout.jsonl")),
+    rank=RankConfig(enabled=False),
+    runner=RunnerConfig(workers=1),
+    sandbox=SandboxConfig(image="coderoll-python:3.11", timeout=10, network=False),
+    viewer=ViewerConfig(enabled=False),
+    raw={},
+    base_dir=Path(".").resolve(),
+)
+
+results = run_from_config(config)
+print(results.records[0].stdout.strip())
+print("jsonResult:", config.output_path)
 ```
 
 ## Architecture Diagram
