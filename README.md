@@ -95,49 +95,49 @@ open = false
 ```
 
 ```yaml
-id: quickstart_file_mode
-mode: file
-language: python
-output: runs/file_mode_results.jsonl
+id: quickstart_file_mode # Run identifier shown in outputs/reports
+mode: file # File-mode evaluation (code file + tests)
+language: python # Runtime/language for candidate execution
+output: runs/file_mode_results.jsonl # JSONL results output path
 
 file:
-  code_file: solution.py
-  test_file: test_solution.py
+  code_file: solution.py # File where each candidate solution is written
+  test_file: test_solution.py # Test file executed during eval
 
 candidates:
-  path: example/python/project/simple/candidates_100.jsonl
-  type: jsonl
+  path: example/python/project/simple/candidates_100.jsonl # Input candidate set
+  type: jsonl # Candidate file format
 
 setup:
-  commands: []
+  commands: [] # Optional pre-eval setup commands
 
 eval:
   commands:
-    - name: tests
-      command: python -m pytest -q test_solution.py --junitxml=.coderoll-results.xml
-      result_format: junit
-  stop_on_first_failure: false
-  score_strategy: weighted
+    - name: tests # Label for this eval command
+      command: python -m pytest -q test_solution.py --junitxml=.coderoll-results.xml # Test command
+      result_format: junit # Parse output as JUnit test results
+  stop_on_first_failure: false # Continue remaining commands after a failure
+  score_strategy: weighted # Scoring policy (currently validated config option)
 
 rank:
-  enabled: true
-  profile: default
+  enabled: true # Enable post-run ranking
+  profile: default # Ranking profile: default|strict|debug
 
 runner:
-  workers: 2
+  workers: 2 # Number of parallel workers
 
 sandbox:
-  image: coderoll-python:3.11
-  timeout: 10
-  memory: 512m
-  cpus: "1"
-  pids_limit: 128
-  network: false
+  image: coderoll-python:3.11 # Docker image used for execution
+  timeout: 10 # Per-candidate timeout in seconds
+  memory: 512m # Container memory limit
+  cpus: "1" # CPU quota/limit
+  pids_limit: 128 # Max processes inside container
+  network: false # Disable network access for safety/repro
 
 viewer:
-  enabled: true
-  out: runs/file_mode_results.viewer.html
-  open: false
+  enabled: true # Generate HTML report
+  out: runs/file_mode_results.viewer.html # HTML report output path
+  open: false # Auto-open report after run
 ```
 
 ```bash
